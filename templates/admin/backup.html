@@ -1,0 +1,52 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<div id="content-main">
+    <div style="max-width: 800px; padding: 20px;">
+        
+        <h2>Gestión de Backups</h2>
+        <p>Utilizá estas herramientas para exportar o importar la base de datos de la plataforma.</p>
+
+        {% if messages %}
+        <ul class="messagelist">
+            {% for message in messages %}
+            <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <!-- EXPORT -->
+        <div class="module" style="padding: 24px; margin-bottom: 32px; border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
+            <h3 style="font-size: 18px; margin-top: 0;">Exportar Base de Datos</h3>
+            <p style="color: #6b7280; font-size: 14px;">Descarga la estructura y datos completos de tu plataforma (Excluye logs y sesiones de usuario por seguridad y peso).</p>
+            <form method="post" action="{% url 'admin_backup' %}">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="export">
+                <button type="submit" class="button default" style="margin-top: 10px; padding: 10px 16px; font-weight: bold; background: #4f46e5;">
+                    ⬇️ Descargar Backup Completo (.json)
+                </button>
+            </form>
+        </div>
+
+        <!-- IMPORT -->
+        <div class="module" style="padding: 24px; border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
+            <h3 style="font-size: 18px; margin-top: 0; color: #b91c1c;">Importar desde Backup</h3>
+            <p style="color: #6b7280; font-size: 14px;">Importá un archivo <code>.json</code> previamente generado. <strong>Importante:</strong> El sistema es inteligente y <strong>NO duplicará registros</strong> si ya existen en esta plataforma (compara por el ID único).</p>
+            <form method="post" action="{% url 'admin_backup' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="import">
+                
+                <div style="margin: 16px 0;">
+                    <label for="backup_file" style="display: block; margin-bottom: 8px; font-weight: bold;">Seleccionar archivo JSON:</label>
+                    <input type="file" name="backup_file" id="backup_file" accept=".json" required>
+                </div>
+
+                <button type="submit" class="button" style="margin-top: 10px; padding: 10px 16px; font-weight: bold; background: #b91c1c; color: white; border: none;">
+                    ⬆️ Subir y Restaurar Backup
+                </button>
+            </form>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1184 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - {{ conversation.contact.name|default:"Sin nombre" }}{% endblock %}
+{% block nav_conversations %}active{% endblock %}
+{% block body_class %}in-conversation{% endblock %}
+
+{% block content %}
+<div class="conv-detail-layout">
+    <!-- Lista de chats lateral -->
+    <div class="chat-list-sidebar" id="chatListSidebar">
+        <div class="chat-list-header">
+            <div style="font-weight: 700; font-size: 13px; margin-bottom: 8px; padding: 0 2px;">Chats</div>
+            <input type="text" id="chatListSearch" placeholder="Buscar chat..." class="chat-list-search">
+        </div>
+        <div class="chat-list-items" id="chatListItems">
+        </div>
+    </div>
+
+    <!-- Columna principal -->
+    <div class="conv-main-col">
+        <div class="page-header conv-page-header">
+            <div style="display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1;">
+                <a href="{% url 'panel:conversation_list' %}" class="btn btn-ghost btn-sm" style="flex-shrink: 0;">←</a>
+                <h1 style="font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0;">
+                    {{ conversation.contact.name|default:"Sin nombre" }}</h1>
+            </div>
+            <!-- Mobile info toggle -->
+            <button class="btn btn-outline btn-sm mobile-info-toggle" id="mobileInfoToggle" onclick="toggleMobileInfo()"
+                title="Ver info">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="12" y1="16" x2="12" y2="12" />
+                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <span class="mobile-info-label">Info</span>
+            </button>
+        </div>
+
+        <div class="chat-container">
+            <!-- Chat principal -->
+            <div class="chat-main">
+                <div class="chat-header">
+                    <div class="chat-header-info">
+                        <div class="contact-avatar">
+                            {{ conversation.contact.name|first|default:"?" }}
+                        </div>
+                        <div style="min-width: 0;">
+                            <div class="contact-name">{{ conversation.contact.name|default:"Sin nombre" }}</div>
+                            <div class="contact-id"
+                                style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ conversation.contact.platform }} · {{ conversation.contact.external_id }}</div>
+                        </div>
+                    </div>
+                    <div class="chat-header-actions">
+                        <!-- Estado -->
+                        <form method="post" action="{% url 'panel:update_status' conversation.id %}"
+                            style="display:inline;">
+                            {% csrf_token %}
+                            <select name="status" class="status-select" onchange="this.form.submit()"
+                                style="width:auto;">
+                                {% for key, label in status_choices %}
+                                <option value="{{ key }}" {% if conversation.status == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+
+                        <!-- IA toggle -->
+                        <form method="post" action="{% url 'panel:toggle_ai' conversation.id %}"
+                            style="display:inline;">
+                            {% csrf_token %}
+                            {% if conversation.is_ai_active %}
+                            <button type="submit" class="btn btn-outline btn-sm" title="Tomar control">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" style="vertical-align: middle;">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                    <circle cx="12" cy="7" r="4" />
+                                </svg>
+                                <span class="action-label">Tomar control</span>
+                            </button>
+                            {% else %}
+                            <button type="submit" class="btn btn-primary btn-sm" title="Activar IA">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" style="vertical-align: middle;">
+                                    <rect x="3" y="11" width="18" height="10" rx="2" />
+                                    <circle cx="12" cy="5" r="2" />
+                                    <path d="M12 7v4" />
+                                </svg>
+                                <span class="action-label">Activar IA</span>
+                            </button>
+                            {% endif %}
+                        </form>
+
+                        <!-- Reenviar menú -->
+                        <form method="post" action="{% url 'panel:resend_menu' conversation.id %}"
+                            style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline btn-sm" title="Enviar menú">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2" style="vertical-align: middle;">
+                                    <line x1="8" y1="6" x2="21" y2="6" />
+                                    <line x1="8" y1="12" x2="21" y2="12" />
+                                    <line x1="8" y1="18" x2="21" y2="18" />
+                                    <line x1="3" y1="6" x2="3.01" y2="6" />
+                                    <line x1="3" y1="12" x2="3.01" y2="12" />
+                                    <line x1="3" y1="18" x2="3.01" y2="18" />
+                                </svg>
+                                <span class="action-label">Menú</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Mensajes -->
+                <div class="chat-messages" id="chatMessages">
+                    {% load tz %}
+                    {% for msg in messages %}
+                    {% ifchanged msg.created_at|date:"Y-m-d" %}
+                    <div class="date-separator" data-date="{{ msg.created_at|date:'Y-m-d' }}">
+                        <span class="date-separator-label">
+                            {% now "Y-m-d" as today_str %}
+                            {% if msg.created_at|date:"Y-m-d" == today_str %}
+                            Hoy
+                            {% else %}
+                            {{ msg.created_at|date:"d/m/Y" }}
+                            {% endif %}
+                        </span>
+                    </div>
+                    {% endifchanged %}
+                    <div class="message-bubble {{ msg.role }}" data-msg-id="{{ msg.id }}"
+                        data-msg-date="{{ msg.created_at|date:'Y-m-d' }}">
+                        {% if msg.role == 'assistant' %}
+                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                            <div class="message-role-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2"
+                                    style="vertical-align: middle; margin-right: 2px;">
+                                    <rect x="3" y="11" width="18" height="10" rx="2" />
+                                    <circle cx="12" cy="5" r="2" />
+                                    <path d="M12 7v4" />
+                                    <line x1="8" y1="16" x2="8.01" y2="16" />
+                                    <line x1="16" y1="16" x2="16.01" y2="16" />
+                                </svg> IA</div>
+                            {% if request.user.profile.role in 'admin,supervisor' and business.config.ai_feedback_enabled %}
+                            <div class="ai-feedback-actions" style="display: flex; gap: 6px;">
+                                <button class="btn-icon btn-ghost feedback-btn" data-msg-id="{{ msg.id }}"
+                                    data-rating="1" title="Buena respuesta" style="padding: 2px;">👍</button>
+                                <button class="btn-icon btn-ghost feedback-btn" data-msg-id="{{ msg.id }}"
+                                    data-rating="-1" title="Mala respuesta" style="padding: 2px;">👎</button>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% elif msg.role == 'agent' %}
+                        <div class="message-role-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2"
+                                style="vertical-align: middle; margin-right: 2px;">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                                <circle cx="12" cy="7" r="4" />
+                            </svg> Recepcionista</div>
+                        {% elif msg.role == 'system' %}
+                        <div class="message-role-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2"
+                                style="vertical-align: middle; margin-right: 2px;">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="16" x2="12" y2="12" />
+                                <line x1="12" y1="8" x2="12.01" y2="8" />
+                            </svg> Sistema</div>
+                        {% endif %}
+
+                        {% if msg.metadata.media_url %}
+                        <div class="message-media" style="margin-bottom: 4px;">
+                            {% if msg.metadata.media_type == 'image' %}
+                            <img src="{{ msg.metadata.media_url }}" alt="Imagen adjunta"
+                                onclick="openMediaModal('{{ msg.metadata.media_url }}', 'image')">
+                            {% elif msg.metadata.media_type == 'video' %}
+                            <video src="{{ msg.metadata.media_url }}#t=0.001" preload="metadata"
+                                onclick="openMediaModal('{{ msg.metadata.media_url }}', 'video')"></video>
+                            {% elif msg.metadata.media_type == 'audio' %}
+                            <audio src="{{ msg.metadata.media_url }}" controls style="max-width: 100%;"></audio>
+                            {% elif msg.metadata.media_type == 'document' %}
+                            <a href="{{ msg.metadata.media_url }}" target="_blank" class="btn btn-sm btn-outline"
+                                style="display: inline-flex; align-items: center; gap: 4px;">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                    <polyline points="14 2 14 8 20 8" />
+                                </svg>
+                                Ver documento
+                            </a>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        {{ msg.content|linebreaksbr }}
+                        <div class="message-time">{{ msg.created_at|date:"H:i" }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- Input -->
+                <div class="chat-input-area">
+                    <form method="post" action="{% url 'panel:reply' conversation.id %}" class="chat-input-form" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <div class="chat-input-wrapper" style="display: flex; flex-direction: column; width: 100%;">
+                            <div id="file-preview-container" class="file-preview-container" style="display: none; padding: 4px 8px; background: var(--bg-hover); border-radius: 4px; margin-bottom: 8px; border: 1px solid var(--border-light);">
+                                <div class="file-preview-content" style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: var(--text-secondary);">
+                                    <span style="display: flex; align-items: center; gap: 4px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                                        <span id="file-preview-name" class="file-preview-name" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></span>
+                                    </span>
+                                    <button type="button" class="btn-icon btn-ghost" id="remove-file-btn" title="Quitar archivo" style="padding: 2px 4px; color: var(--error);">✖</button>
+                                </div>
+                            </div>
+                            <div class="chat-input-row" style="display: flex; gap: 8px; align-items: center; width: 100%;">
+                                <button type="button" class="btn btn-outline btn-icon" id="attach-btn" title="Adjuntar archivo" style="flex-shrink: 0; padding: 8px; height: 100%;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                                    </svg>
+                                </button>
+                                <button type="button" class="btn btn-outline btn-icon" id="mic-btn" title="Grabar nota de voz" style="flex-shrink: 0; padding: 8px; height: 100%;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+                                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                                        <line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
+                                    </svg>
+                                </button>
+                                <input type="file" id="media_file" name="media_file" accept="image/*,audio/*,.pdf,.doc,.docx" style="display: none;">
+                                <input type="text" id="chat-text-input" name="message" class="chat-input" placeholder="Escribir respuesta..." autocomplete="off" autofocus style="flex: 1;">
+                                
+                                <div id="recording-overlay" style="display: none; flex: 1; align-items: center; justify-content: space-between; background: var(--bg-hover); border-radius: 4px; padding: 0 12px; height: 36px; border: 1px solid var(--border-light);">
+                                    <div style="display: flex; align-items: center; gap: 8px; color: var(--error); font-size: 14px; font-weight: bold;">
+                                        <div style="width: 10px; height: 10px; border-radius: 50%; background-color: var(--error); animation: pulse 1.5s infinite;"></div>
+                                        <span id="recording-time">00:00</span>
+                                    </div>
+                                    <div style="display: flex; gap: 8px;">
+                                        <button type="button" class="btn-icon btn-ghost" id="cancel-record-btn" title="Descartar y cancelar" style="color: var(--error);">🗑</button>
+                                        <button type="button" class="btn-icon btn-ghost" id="stop-record-btn" title="Listo para enviar" style="color: var(--primary);">✔</button>
+                                    </div>
+                                </div>
+
+                                <button type="submit" id="send-btn" class="btn btn-primary" style="flex-shrink: 0;">Enviar</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Sidebar info (desktop: side panel, mobile: drawer) -->
+            <div class="chat-sidebar" id="chatInfoSidebar">
+                <!-- Mobile close button -->
+                <div class="mobile-info-header">
+                    <h2 style="font-size: 15px; font-weight: 700; margin: 0;">Información</h2>
+                    <button class="btn btn-ghost btn-sm" onclick="toggleMobileInfo()">✕</button>
+                </div>
+
+                <!-- Asignación de agente -->
+                <div class="info-card">
+                    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg> Asignación</h3>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+                        {% if conversation.assigned_to %}
+                        Asignado a: <strong>👤 {{ conversation.assigned_to.first_name|default:conversation.assigned_to.username }}</strong>
+                        {% else %}
+                        <span style="font-style: italic; color: var(--text-muted);">Sin asignar</span>
+                        {% endif %}
+                    </p>
+                    <form action="{% url 'panel:assign_agent' conversation.id %}" method="post"
+                        style="display: flex; gap: 8px;">
+                        {% csrf_token %}
+                        <select name="agent_id" class="filter-select" style="flex: 1;">
+                            <option value="">-- Sin asignar --</option>
+                            {% for agent in agents %}
+                            <option value="{{ agent.id }}" {% if conversation.assigned_to_id == agent.id %}selected{% endif %}>
+                                {{ agent.first_name|default:agent.username }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-primary btn-sm">Asignar</button>
+                    </form>
+                </div>
+
+                <!-- Resumen IA -->
+                <div class="info-card">
+                    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6" />
+                            <line x1="8" y1="12" x2="21" y2="12" />
+                            <line x1="8" y1="18" x2="21" y2="18" />
+                            <line x1="3" y1="6" x2="3.01" y2="6" />
+                            <line x1="3" y1="12" x2="3.01" y2="12" />
+                            <line x1="3" y1="18" x2="3.01" y2="18" />
+                        </svg> Resumen IA</h3>
+                    {% if conversation.summary %}
+                    <p>{{ conversation.summary }}</p>
+                    {% else %}
+                    <p style="color: var(--text-muted); font-style: italic;">Sin resumen aún</p>
+                    {% endif %}
+                    <form method="post" action="{% url 'panel:refresh_summary' conversation.id %}"
+                        style="margin-top: 10px;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline btn-sm" style="width: 100%;">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" style="vertical-align: middle; margin-right: 4px;">
+                                <polyline points="23 4 23 10 17 10" />
+                                <polyline points="1 20 1 14 7 14" />
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                            </svg> Regenerar
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Clasificación -->
+                <div class="info-card">
+                    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                            <line x1="7" y1="7" x2="7.01" y2="7" />
+                        </svg> Clasificación</h3>
+                    <div style="margin-bottom: 8px;">
+                        <span class="classification-tag"
+                            style="background: {{ classification_info.color }}15; color: {{ classification_info.color }}; border-color: {{ classification_info.color }}30;">
+                            {{ classification_info.icon|safe }} {{ classification_info.label }}
+                        </span>
+                        {% if conversation.classification_confidence %}
+                        <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">{{ conversation.classification_confidence|floatformat:0 }}%</span>
+                        {% endif %}
+                    </div>
+                    <form method="post" action="{% url 'panel:update_classification' conversation.id %}">
+                        {% csrf_token %}
+                        <select name="classification" class="classification-select" onchange="this.form.submit()">
+                            <option value="">Cambiar...</option>
+                            {% for cat in classifications %}
+                            <option value="{{ cat.key }}" {% if conversation.classification == cat.key %}selected{% endif %}>{{ cat.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </form>
+                </div>
+
+                <!-- Etiquetas -->
+                <div class="info-card">
+                    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                            <line x1="7" y1="7" x2="7.01" y2="7" />
+                        </svg> Etiquetas</h3>
+                    <div style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px;">
+                        {% for tag in conversation.tags.all %}
+                        <span class="classification-tag"
+                            style="background: {{ tag.color }}15; color: {{ tag.color }}; border-color: {{ tag.color }}30; font-size: 11px; padding: 2px 8px;">
+                            {{ tag.name }}
+                        </span>
+                        {% empty %}
+                        <span style="color: var(--text-muted); font-size: 11px; font-style: italic;">Sin
+                            etiquetas</span>
+                        {% endfor %}
+                    </div>
+                    {% if tags %}
+                    <form method="post" action="{% url 'panel:toggle_tag' conversation.id %}"
+                        style="display: flex; gap: 8px; margin-top: 8px;">
+                        {% csrf_token %}
+                        <select name="tag_id" class="classification-select" style="flex: 1;" required>
+                            <option value="">Seleccionar...</option>
+                            {% for tag in tags %}
+                            <option value="{{ tag.id }}">{{ tag.name }} {% if tag in conversation.tags.all %}(Quitar){% else %}(Agregar){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn-outline btn-sm" style="padding: 4px 8px;">Aceptar</button>
+                    </form>
+                    {% else %}
+                    <p style="font-size: 11px; color: var(--text-muted); margin: 0; margin-top: 8px;">No hay etiquetas creadas en la base de datos.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Selecciones -->
+                {% if conversation.menu_selections %}
+                <div class="info-card">
+                    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6" />
+                            <line x1="8" y1="12" x2="21" y2="12" />
+                            <line x1="8" y1="18" x2="21" y2="18" />
+                            <line x1="3" y1="6" x2="3.01" y2="6" />
+                            <line x1="3" y1="12" x2="3.01" y2="12" />
+                            <line x1="3" y1="18" x2="3.01" y2="18" />
+                        </svg> Selecciones</h3>
+                    {% for sel in conversation.menu_selections %}
+                    <div class="menu-selection-item">
+                        <span>{{ sel.category }}</span>
+                        {% if sel.subcategory %}
+                        <span class="arrow">→</span>
+                        <span>{{ sel.subcategory }}</span>
+                        {% endif %}
+                        {% if sel.sub_subcategory %}
+                        <span class="arrow">→</span>
+                        <span>{{ sel.sub_subcategory }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- SLA -->
+                <div class="info-card">
+                    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg> SLA</h3>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        {% if conversation.is_ai_active %}
+                        <span class="ai-badge active" style="align-self: flex-start;">🤖 IA Automática Activa</span>
+                        {% else %}
+                        <span class="ai-badge inactive" style="align-self: flex-start;">👤 Control Humano</span>
+                        {% if conversation.human_needed_at %}
+                        <span
+                            style="font-size: 11px; color: var(--error); display: flex; align-items: center; gap: 4px;">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            Esperando hace {{ conversation.human_needed_at|timesince }}
+                        </span>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Info -->
+                <div class="info-card">
+                    <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" />
+                            <rect x="14" y="3" width="7" height="7" />
+                            <rect x="14" y="14" width="7" height="7" />
+                            <rect x="3" y="14" width="7" height="7" />
+                        </svg> Info</h3>
+                    <div
+                        style="font-size: 12px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
+                        <span><strong>Estado:</strong> {{ conversation.get_status_display }}</span>
+                        <span><strong>IA:</strong> {% if conversation.is_ai_active %}Activa{% else %}Desactivada{% endif %}</span>
+                        <span><strong>Plataforma:</strong> {{ conversation.contact.get_platform_display }}</span>
+                        <span><strong>Inicio:</strong> {{ conversation.created_at|date:"d/m/Y H:i" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div><!-- /conv-main-col -->
+</div><!-- /conv-detail-layout -->
+
+<!-- Overlay for mobile info panel -->
+<div class="mobile-info-overlay" id="mobileInfoOverlay" onclick="toggleMobileInfo()"></div>
+
+<!-- Media Modal -->
+<div id="mediaModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; cursor: pointer;">
+    <span class="close-modal"
+        style="position: absolute; top: 20px; right: 30px; color: white; font-size: 36px; font-weight: bold; cursor: pointer; z-index: 10001;">&times;</span>
+    <img id="modalImg"
+        style="display: none; max-width: 90%; max-height: 90%; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); cursor: default;">
+    <video id="modalVideo" controls
+        style="display: none; max-width: 90%; max-height: 90%; border-radius: 4px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); cursor: default;"></video>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    .message-media img,
+    .message-media video {
+        max-width: 280px;
+        max-height: 280px;
+        border-radius: 8px;
+        cursor: zoom-in;
+        transition: opacity 0.2s;
+    }
+
+    .message-media img:hover,
+    .message-media video:hover {
+        opacity: 0.85;
+    }
+
+    .message-time {
+        font-size: 10px;
+        color: var(--text-muted);
+        text-align: right;
+        margin-top: 4px;
+    }
+
+    /* Animation */
+    .message-bubble {
+        animation: bubbleFadeIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        opacity: 0;
+        transform: translateY(10px);
+        margin-bottom: 14px;
+    }
+
+    .message-bubble.user {
+        transform-origin: bottom right;
+    }
+
+    .message-bubble:not(.user) {
+        transform-origin: bottom left;
+    }
+
+    @keyframes bubbleFadeIn {
+        to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    .message-bubble.user .message-time {
+        color: rgba(255, 255, 255, 0.7);
+    }
+
+    /* Date separators like WhatsApp */
+    .date-separator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 16px 0 8px;
+        align-self: center;
+    }
+
+    .date-separator-label {
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+        font-size: 11px;
+        font-weight: 600;
+        padding: 4px 14px;
+        border-radius: var(--radius-full);
+        box-shadow: var(--shadow-sm);
+        white-space: nowrap;
+    }
+
+    /* Conversation page header */
+    .conv-page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    /* Mobile info toggle button — hidden on desktop */
+    .mobile-info-toggle {
+        display: none;
+    }
+
+    /* Mobile info header — hidden on desktop */
+    .mobile-info-header {
+        display: none;
+    }
+
+    /* Mobile info overlay */
+    .mobile-info-overlay {
+        display: none;
+    }
+
+    /* Hide action labels on small screens */
+    @media (max-width: 900px) {
+        .action-label {
+            display: none;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .mobile-info-toggle {
+            display: inline-flex;
+            flex-shrink: 0;
+        }
+
+        .mobile-info-label {
+            display: none;
+        }
+
+        .conv-page-header {
+            padding-left: 36px;
+        }
+
+        /* Chat sidebar becomes a right drawer */
+        .chat-sidebar {
+            display: flex !important;
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 300px;
+            max-width: 85vw;
+            height: 100vh;
+            z-index: 300;
+            background: var(--bg-card);
+            border-left: 1px solid var(--border);
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.15);
+            padding: 0 14px 14px;
+            overflow-y: auto;
+            transform: translateX(100%);
+            transition: transform 0.25s ease;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-sidebar.open {
+            transform: translateX(0);
+        }
+
+        .mobile-info-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border-light);
+            margin-bottom: 4px;
+            position: sticky;
+            top: 0;
+            background: var(--bg-card);
+            z-index: 1;
+        }
+
+        .mobile-info-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 299;
+            opacity: 0;
+            transition: opacity 0.25s;
+            pointer-events: none;
+        }
+
+        .mobile-info-overlay.open {
+            display: block;
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .message-bubble {
+            max-width: 88%;
+        }
+
+        .message-media img,
+        .message-media video {
+            max-width: 200px;
+            max-height: 200px;
+        }
+
+        .chat-header {
+            flex-direction: column;
+            gap: 8px;
+            padding: 10px 12px;
+        }
+
+        .chat-header-info {
+            width: 100%;
+        }
+
+        .chat-header-actions {
+            width: 100%;
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 2px;
+        }
+
+        .chat-header-actions .btn {
+            font-size: 11px;
+            padding: 5px 8px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .chat-messages {
+            padding: 12px;
+        }
+
+        .chat-input-area {
+            padding: 8px 10px;
+        }
+
+        .chat-input {
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .mobile-info-toggle .mobile-info-label {
+            display: none;
+        }
+
+        .chat-sidebar {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .message-media img,
+        .message-media video {
+            max-width: 180px;
+            max-height: 180px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function openMediaModal(url, type) {
+        const modal = document.getElementById('mediaModal');
+        const img = document.getElementById('modalImg');
+        const video = document.getElementById('modalVideo');
+
+        if (type === 'image') {
+            img.src = url;
+            img.style.display = 'block';
+            video.style.display = 'none';
+            video.pause();
+        } else if (type === 'video') {
+            video.src = url;
+            video.style.display = 'block';
+            img.style.display = 'none';
+        }
+
+        modal.style.display = 'flex';
+    }
+
+    function closeMediaModal() {
+        const modal = document.getElementById('mediaModal');
+        const video = document.getElementById('modalVideo');
+        modal.style.display = 'none';
+        video.pause();
+    }
+
+    // Mobile info drawer toggle
+    function toggleMobileInfo() {
+        var sidebar = document.getElementById('chatInfoSidebar');
+        var overlay = document.getElementById('mobileInfoOverlay');
+        var isOpen = sidebar.classList.contains('open');
+        sidebar.classList.toggle('open', !isOpen);
+        overlay.classList.toggle('open', !isOpen);
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const modal = document.getElementById('mediaModal');
+        if (modal) {
+            modal.addEventListener('click', function (e) {
+                if (e.target === this || e.target.className === 'close-modal') {
+                    closeMediaModal();
+                }
+            });
+        }
+
+        // Attachment handler
+        const attachBtn = document.getElementById('attach-btn');
+        const mediaFileInput = document.getElementById('media_file');
+        const previewContainer = document.getElementById('file-preview-container');
+        const previewName = document.getElementById('file-preview-name');
+        const removeFileBtn = document.getElementById('remove-file-btn');
+        const chatInputForm = document.querySelector('.chat-input-form');
+        const submitBtn = chatInputForm ? chatInputForm.querySelector('button[type="submit"]') : null;
+
+        if (attachBtn && mediaFileInput) {
+            attachBtn.addEventListener('click', function() {
+                mediaFileInput.click();
+            });
+
+            mediaFileInput.addEventListener('change', function() {
+                if (this.files && this.files.length > 0) {
+                    const file = this.files[0];
+                    if (file.size > 16 * 1024 * 1024) {
+                        alert("El archivo supera el límite de 16MB.");
+                        this.value = '';
+                        return;
+                    }
+                    previewName.textContent = file.name;
+                    previewContainer.style.display = 'block';
+                    if (submitBtn) submitBtn.removeAttribute('disabled');
+                } else {
+                    previewContainer.style.display = 'none';
+                }
+            });
+
+            removeFileBtn.addEventListener('click', function() {
+                mediaFileInput.value = '';
+                previewContainer.style.display = 'none';
+            });
+            
+            if (chatInputForm) {
+                chatInputForm.addEventListener('submit', function(e) {
+                    const textInput = chatInputForm.querySelector('input[name="message"]');
+                    if (!textInput.value.trim() && !mediaFileInput.value) {
+                        e.preventDefault();
+                        return false;
+                    }
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Enviando...';
+                    }
+                });
+            }
+        }
+
+        // Audio recording handler
+        const micBtn = document.getElementById('mic-btn');
+        const recordingOverlay = document.getElementById('recording-overlay');
+        const recordingTime = document.getElementById('recording-time');
+        const cancelRecordBtn = document.getElementById('cancel-record-btn');
+        const stopRecordBtn = document.getElementById('stop-record-btn');
+        const chatTextInput = document.getElementById('chat-text-input');
+        
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordingInterval;
+        let recordingSeconds = 0;
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        if (micBtn) {
+            micBtn.addEventListener('click', async function() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.addEventListener('dataavailable', event => {
+                        audioChunks.push(event.data);
+                    });
+
+                    mediaRecorder.addEventListener('stop', () => {
+                        stream.getTracks().forEach(track => track.stop());
+                        clearInterval(recordingInterval);
+                        
+                        if (audioChunks.length > 0) {
+                            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                            const audioFile = new File([audioBlob], 'nota_de_voz.webm', { type: 'audio/webm' });
+                            
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(audioFile);
+                            mediaFileInput.files = dataTransfer.files;
+                            
+                            const event = new Event('change');
+                            mediaFileInput.dispatchEvent(event);
+                        }
+                        
+                        recordingOverlay.style.display = 'none';
+                        chatTextInput.style.display = 'flex';
+                        attachBtn.style.display = '';
+                        micBtn.style.display = '';
+                        if (submitBtn) submitBtn.style.display = '';
+                    });
+
+                    mediaRecorder.start();
+                    
+                    chatTextInput.style.display = 'none';
+                    attachBtn.style.display = 'none';
+                    micBtn.style.display = 'none';
+                    if (submitBtn) submitBtn.style.display = 'none';
+                    recordingOverlay.style.display = 'flex';
+                    
+                    recordingSeconds = 0;
+                    recordingTime.textContent = '00:00';
+                    recordingInterval = setInterval(() => {
+                        recordingSeconds++;
+                        recordingTime.textContent = formatTime(recordingSeconds);
+                    }, 1000);
+
+                } catch (err) {
+                    console.error("Error accessing microphone:", err);
+                    alert("No se pudo acceder al micrófono. Por favor revisa los permisos de tu navegador sobre esta URL segura (HTTPS) e intentalo nuevamente.");
+                }
+            });
+
+            stopRecordBtn.addEventListener('click', () => {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                }
+            });
+
+            cancelRecordBtn.addEventListener('click', () => {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    audioChunks = []; 
+                    mediaRecorder.stop();
+                }
+            });
+        }
+
+        // AI Feedback handler
+        document.querySelectorAll('.feedback-btn').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const msgId = this.dataset.msgId;
+                const rating = parseInt(this.dataset.rating);
+
+                // Visual feedback
+                const container = this.closest('.ai-feedback-actions');
+                container.querySelectorAll('.feedback-btn').forEach(b => {
+                    b.style.opacity = '0.5';
+                    b.style.transform = 'scale(0.9)';
+                });
+                this.style.opacity = '1';
+                this.style.transform = 'scale(1.1)';
+
+                fetch(`/panel/conversaciones/mensajes/${msgId}/feedback/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}' // Include CSRF token
+                    },
+                    body: JSON.stringify({ rating: rating })
+                }).then(res => res.json())
+                    .then(data => {
+                        if (data.status !== 'success') {
+                            console.error('Feedback error:', data.message);
+                        }
+                    }).catch(console.error);
+            });
+        });
+    });
+
+    const chatMessages = document.getElementById('chatMessages');
+    const conversationId = '{{ conversation.id }}';
+    let lastMessageId = '{% if messages %}{{ messages.last.id }}{% else %}{% endif %}';
+
+    if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function getRoleLabelHTML(role) {
+        if (role === 'assistant') {
+            return '<div class="message-role-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 2px;"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="16" y1="16" x2="16.01" y2="16"/></svg> IA</div>';
+        } else if (role === 'agent') {
+            return '<div class="message-role-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 2px;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Recepcionista</div>';
+        } else if (role === 'system') {
+            return '<div class="message-role-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 2px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Sistema</div>';
+        }
+        return '';
+    }
+
+    // Marcar conversación como leída en localStorage
+    (function markAsRead() {
+        var msgs = document.querySelectorAll('[data-msg-id]');
+        if (msgs.length > 0) {
+            var lastId = msgs[msgs.length - 1].dataset.msgId;
+            try {
+                var seen = JSON.parse(localStorage.getItem('conv_last_seen')) || {};
+                seen[conversationId] = lastId;
+                localStorage.setItem('conv_last_seen', JSON.stringify(seen));
+            } catch (e) { }
+        }
+    })();
+
+    function getDateLabel(dateStr) {
+        // dateStr comes as "dd/mm/YYYY HH:MM" or ISO string
+        var d;
+        if (dateStr && dateStr.indexOf('T') > -1) {
+            d = new Date(dateStr);
+        } else if (dateStr && dateStr.indexOf('/') > -1) {
+            // parse "dd/mm/YYYY HH:MM"
+            var parts = dateStr.split(' ');
+            var dp = parts[0].split('/');
+            d = new Date(dp[2] + '-' + dp[1] + '-' + dp[0]);
+        } else {
+            d = new Date();
+        }
+        var now = new Date();
+        var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        var yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+        var msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+        if (msgDay.getTime() === today.getTime()) return 'Hoy';
+        if (msgDay.getTime() === yesterday.getTime()) return 'Ayer';
+        return d.getDate().toString().padStart(2, '0') + '/' + (d.getMonth() + 1).toString().padStart(2, '0') + '/' + d.getFullYear();
+    }
+
+    function getDateKey(dateStr) {
+        var d;
+        if (dateStr && dateStr.indexOf('T') > -1) {
+            d = new Date(dateStr);
+        } else if (dateStr && dateStr.indexOf('/') > -1) {
+            var parts = dateStr.split(' ');
+            var dp = parts[0].split('/');
+            d = new Date(dp[2] + '-' + dp[1] + '-' + dp[0]);
+        } else {
+            d = new Date();
+        }
+        return d.getFullYear() + '-' + (d.getMonth() + 1).toString().padStart(2, '0') + '-' + d.getDate().toString().padStart(2, '0');
+    }
+
+    // Track the last date displayed in the chat
+    var lastDateKey = '';
+    (function () {
+        var allSeps = chatMessages.querySelectorAll('.date-separator');
+        if (allSeps.length > 0) {
+            lastDateKey = allSeps[allSeps.length - 1].dataset.date || '';
+        }
+        // Also update "Ayer" labels on page load
+        allSeps.forEach(function (sep) {
+            var dateKey = sep.dataset.date;
+            if (dateKey) {
+                var now = new Date();
+                var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                var yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+                var parts = dateKey.split('-');
+                var sepDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                var label = sep.querySelector('.date-separator-label');
+                if (label) {
+                    if (sepDate.getTime() === today.getTime()) label.textContent = 'Hoy';
+                    else if (sepDate.getTime() === yesterday.getTime()) label.textContent = 'Ayer';
+                }
+            }
+        });
+    })();
+
+    function appendMessage(msg) {
+        // Check if we need a date separator
+        var msgDateKey = getDateKey(msg.created_at);
+        if (msgDateKey !== lastDateKey) {
+            var sepDiv = document.createElement('div');
+            sepDiv.className = 'date-separator';
+            sepDiv.dataset.date = msgDateKey;
+            sepDiv.innerHTML = '<span class="date-separator-label">' + getDateLabel(msg.created_at) + '</span>';
+            chatMessages.appendChild(sepDiv);
+            lastDateKey = msgDateKey;
+        }
+
+        const div = document.createElement('div');
+        div.className = `message-bubble ${msg.role}`;
+        div.dataset.msgId = msg.id;
+        div.dataset.msgDate = msgDateKey;
+
+        let html = getRoleLabelHTML(msg.role);
+
+        const contentText = document.createTextNode(msg.content);
+        const tempDiv = document.createElement('div');
+        tempDiv.appendChild(contentText);
+        let htmlContent = tempDiv.innerHTML.replace(/\n/g, '<br/>');
+
+        if (msg.metadata && msg.metadata.media_url) {
+            htmlContent = '<div class="message-media" style="margin-bottom: 4px;">';
+            if (msg.metadata.media_type === 'image') {
+                htmlContent += `<img src="${msg.metadata.media_url}" alt="Imagen adjunta" onclick="openMediaModal('${msg.metadata.media_url}', 'image')">`;
+            } else if (msg.metadata.media_type === 'video') {
+                htmlContent += `<video src="${msg.metadata.media_url}#t=0.001" preload="metadata" onclick="openMediaModal('${msg.metadata.media_url}', 'video')"></video>`;
+            } else if (msg.metadata.media_type === 'audio') {
+                htmlContent += `<audio src="${msg.metadata.media_url}" controls style="max-width: 100%;"></audio>`;
+            } else if (msg.metadata.media_type === 'document') {
+                htmlContent += `<a href="${msg.metadata.media_url}" target="_blank" class="btn btn-sm btn-outline" style="display: inline-flex; align-items: center; gap: 4px;">`;
+                htmlContent += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+                htmlContent += ' Ver documento</a>';
+            }
+            htmlContent += '</div>' + tempDiv.innerHTML.replace(/\n/g, '<br/>');
+        }
+
+        html += htmlContent;
+        // Extract just the time (HH:MM) from created_at
+        var timeOnly = msg.created_at;
+        if (msg.created_at && msg.created_at.indexOf(' ') > -1) {
+            timeOnly = msg.created_at.split(' ').pop();
+        } else if (msg.created_at && msg.created_at.indexOf('T') > -1) {
+            var tPart = msg.created_at.split('T')[1];
+            timeOnly = tPart ? tPart.substring(0, 5) : msg.created_at;
+        }
+        html += `<div class="message-time">${timeOnly}</div>`;
+
+        div.innerHTML = html;
+        chatMessages.appendChild(div);
+        lastMessageId = msg.id;
+        try {
+            var seen = JSON.parse(localStorage.getItem('conv_last_seen')) || {};
+            seen[conversationId] = msg.id;
+            localStorage.setItem('conv_last_seen', JSON.stringify(seen));
+        } catch (e) { }
+    }
+
+    function pollNewMessages() {
+        const url = `/panel/conversaciones/${conversationId}/mensajes/?last_msg_id=${lastMessageId}`;
+        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.json())
+            .then(data => {
+                if (data.messages && data.messages.length > 0) {
+                    const isAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 50;
+                    data.messages.forEach(appendMessage);
+                    if (isAtBottom) {
+                        chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+                    }
+                }
+            })
+            .catch(err => console.error('Error polling messages:', err));
+    }
+
+    setInterval(pollNewMessages, 3000);
+
+    // ── Chat list sidebar (real-time) ──
+    var CHAT_LIST_POLL = 5000;
+    var currentConvId = '{{ conversation.id }}';
+    var chatListData = [];
+
+    function getLastSeen() {
+        try { return JSON.parse(localStorage.getItem('conv_last_seen')) || {}; }
+        catch (e) { return {}; }
+    }
+
+    function getInitial(name) {
+        return (name && name.length > 0) ? name.charAt(0).toUpperCase() : '?';
+    }
+
+    function timeAgo(dateStr) {
+        if (!dateStr) return '';
+        var d = new Date(dateStr);
+        var now = new Date();
+        var diff = Math.floor((now - d) / 1000);
+        if (diff < 60) return 'ahora';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+        return Math.floor(diff / 86400) + 'd';
+    }
+
+    function renderChatList(conversations) {
+        var container = document.getElementById('chatListItems');
+        if (!container) return;
+        var search = (document.getElementById('chatListSearch').value || '').toLowerCase();
+        var lastSeen = getLastSeen();
+        var html = '';
+
+        conversations.forEach(function (conv) {
+            var name = conv.contact_name || 'Sin nombre';
+            if (search && name.toLowerCase().indexOf(search) === -1) return;
+
+            var isActive = conv.id === currentConvId;
+            var unreadCount = conv.panel_unread_count || 0;
+            var hasUnread = unreadCount > 0 && !isActive;
+
+            html += '<a href="/panel/conversaciones/' + conv.id + '/" class="chat-list-item' + (isActive ? ' active' : '') + (hasUnread ? ' has-unread' : '') + '">';
+            html += '<div class="chat-list-avatar">' + getInitial(name) + '</div>';
+            html += '<div class="chat-list-meta">';
+            html += '<div class="chat-list-name">' + name + '</div>';
+            html += '<div class="chat-list-preview">' + (conv.last_msg_preview || '') + '</div>';
+            html += '</div>';
+            html += '<div class="chat-list-right">';
+            html += '<span class="chat-list-time">' + timeAgo(conv.updated_at) + '</span>';
+            if (hasUnread) {
+                html += '<span class="chat-list-badge" style="background-color: var(--primary); color: white; border-radius: 12px; font-size: 10px; font-weight: bold; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center; margin-top: 4px;">' + unreadCount + '</span>';
+            }
+            html += '</div>';
+            html += '</a>';
+        });
+
+        var finalHtml = html || '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;">Sin conversaciones</div>';
+
+        // Only update DOM if HTML actually changed to prevent animation flash and focus loss
+        if (container.innerHTML !== finalHtml) {
+            container.innerHTML = finalHtml;
+        }
+    }
+
+    function pollChatList() {
+        fetch('/panel/conversaciones/actualizaciones/', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data.conversations) {
+                    chatListData = data.conversations;
+                    renderChatList(chatListData);
+                }
+            })
+            .catch(function () { });
+    }
+
+    pollChatList();
+    setInterval(pollChatList, CHAT_LIST_POLL);
+
+    var chatListSearchEl = document.getElementById('chatListSearch');
+    if (chatListSearchEl) {
+        chatListSearchEl.addEventListener('input', function () {
+            renderChatList(chatListData);
+        });
+    }
+</script>
+{% endblock %}

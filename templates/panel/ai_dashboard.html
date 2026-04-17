@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard IA{% endblock %}
+{% block nav_settings %}active{% endblock %} <!-- We will place the link in the sidebar under settings or create a new nav item -->
+
+{% block extra_css %}
+<style>
+    .stat-icon svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .stat-icon.purple {
+        background: rgba(139, 92, 246, 0.1);
+        color: #8b5cf6;
+    }
+
+    .stat-icon.emerald {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+    }
+
+    .stat-icon.blue {
+        background: rgba(59, 130, 246, 0.1);
+        color: #3b82f6;
+    }
+
+    .dashboard-header-modern {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 32px;
+        animation: fade-in-down 0.4s ease-out;
+    }
+
+    .ai-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        border: 1px solid rgba(0,0,0,0.05);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        animation: fade-in-up 0.5s ease-out backwards;
+    }
+
+    .ai-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+    
+    .progress-bar-container {
+        width: 100%;
+        background-color: #e2e8f0;
+        border-radius: 999px;
+        height: 12px;
+        margin-top: 16px;
+        overflow: hidden;
+    }
+    
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #8b5cf6 0%, #3b82f6 100%);
+        border-radius: 999px;
+        transition: width 1s ease-in-out;
+    }
+
+    @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fade-in-down {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-header-modern">
+    <div>
+        <h1 style="display: flex; align-items: center; gap: 8px; font-size: 24px; color: #1e293b;">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2">
+                <rect x="3" y="11" width="18" height="10" rx="2" />
+                <circle cx="12" cy="5" r="2" />
+                <path d="M12 7v4" />
+                <line x1="8" y1="16" x2="8.01" y2="16" />
+                <line x1="16" y1="16" x2="16.01" y2="16" />
+            </svg>
+            Dashboard de IA
+        </h1>
+        <p style="color: #64748b; margin-top: 4px;">Analíticas de uso y costos del motor de Inteligencia Artificial.</p>
+    </div>
+</div>
+
+<div class="stats-grid" style="margin-bottom: 32px;">
+    <!-- Tokens -->
+    <div class="ai-card" style="animation-delay: 0.1s;">
+        <div style="display: flex; align-items:flex-start; justify-content: space-between;">
+            <div class="stat-info">
+                <p style="text-transform: uppercase; font-size: 12px; font-weight: 600; color: #64748b; letter-spacing: 0.5px; margin-bottom: 8px;">Tokens Consumidos</p>
+                <h3 style="font-size: 32px; font-weight: 700; color: #0f172a; margin: 0;">{{ total_tokens|default:"0" }}</h3>
+            </div>
+            <div class="stat-icon purple" style="border-radius: 12px; padding: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                    <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                </svg>
+            </div>
+        </div>
+        <p style="font-size: 13px; color: #64748b; margin-top: 16px;">Total de uso en respuestas y clasificación.</p>
+    </div>
+
+    <!-- Costo Estimado -->
+    <div class="ai-card" style="animation-delay: 0.2s;">
+        <div style="display: flex; align-items:flex-start; justify-content: space-between;">
+            <div class="stat-info">
+                <p style="text-transform: uppercase; font-size: 12px; font-weight: 600; color: #64748b; letter-spacing: 0.5px; margin-bottom: 8px;">Costo Estimado (USD)</p>
+                <h3 style="font-size: 32px; font-weight: 700; color: #0f172a; margin: 0;">${{ total_cost|floatformat:4|default:"0.0000" }}</h3>
+            </div>
+            <div class="stat-icon emerald" style="border-radius: 12px; padding: 12px;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="1" x2="12" y2="23"></line>
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                </svg>
+            </div>
+        </div>
+        <p style="font-size: 13px; color: #64748b; margin-top: 16px;">Generado usando el modelo seleccionado.</p>
+    </div>
+
+    <!-- Ratio IA -->
+    <div class="ai-card" style="animation-delay: 0.3s; grid-column: span 2;">
+        <div style="display: flex; align-items:flex-start; justify-content: space-between;">
+            <div class="stat-info" style="width: 100%;">
+                <p style="text-transform: uppercase; font-size: 12px; font-weight: 600; color: #64748b; letter-spacing: 0.5px; margin-bottom: 8px;">Nivel de Automatización</p>
+                <div style="display: flex; align-items: baseline; gap: 12px;">
+                    <h3 style="font-size: 32px; font-weight: 700; color: #0f172a; margin: 0;">{{ ai_ratio }}%</h3>
+                    <span style="font-size: 14px; color: #64748b;">de las {{ total_conv }} conversaciones</span>
+                </div>
+                
+                <div class="progress-bar-container">
+                    <div class="progress-bar-fill" style="width: 0%" data-target="{{ ai_ratio }}"></div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; margin-top: 12px; font-size: 13px;">
+                    <span style="color: #475569; display: flex; align-items: center; gap: 6px;">
+                        <div style="width:8px; height:8px; border-radius:50%; background:#8b5cf6;"></div>
+                        Resolución IA ({{ ai_handled }})
+                    </span>
+                    <span style="color: #475569; display: flex; align-items: center; gap: 6px;">
+                        <div style="width:8px; height:8px; border-radius:50%; background:#e2e8f0;"></div>
+                        Escalado a Humano ({{ human_handled }})
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card ai-card" style="animation-delay: 0.4s;">
+    <h3 style="font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+        </svg>
+        Detalle de Eficiencia
+    </h3>
+    <p style="color: #475569; font-size: 14px; line-height: 1.6;">
+        El motor inteligente se encarga de analizar todas las conversaciones entrantes para clasificarlas y responder en tiempo real según la base de conocimientos. 
+        <br><br>
+        Actualmente, la plataforma está configurada para derivar automáticamente a un agente humano cuando no hay una respuesta clara o el usuario lo solicita explícitamente.
+    </p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Animate progress bar on load
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => {
+            const bar = document.querySelector('.progress-bar-fill');
+            const target = bar.getAttribute('data-target');
+            bar.style.width = target + '%';
+        }, 100);
+    });
+</script>
+{% endblock %}

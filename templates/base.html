@@ -1,0 +1,309 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#6366F1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Chatbot IA">
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <link rel="icon" type="image/svg+xml" href="{% static 'icons/icon-192.svg' %}">
+    <link rel="apple-touch-icon" href="{% static 'images/icon-192x192.png' %}">
+    <title>{% block title %}Panel{% endblock %} | Chatbot IA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/panel.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="{% block body_class %}{% endblock %}">
+    <div class="layout">
+        <!-- Mobile hamburger -->
+        <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="3" y1="6" x2="21" y2="6" />
+                <line x1="3" y1="12" x2="21" y2="12" />
+                <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+        </button>
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileMenu()"></div>
+        <aside class="sidebar" id="mainSidebar">
+            <div class="sidebar-brand">
+                <span class="logo"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                        stroke-width="2">
+                        <rect x="3" y="11" width="18" height="10" rx="2" />
+                        <circle cx="12" cy="5" r="2" />
+                        <path d="M12 7v4" />
+                        <line x1="8" y1="16" x2="8.01" y2="16" />
+                        <line x1="16" y1="16" x2="16.01" y2="16" />
+                    </svg></span>
+                <h2>Chatbot IA</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="{% url 'panel:dashboard' %}" class="sidebar-link {% block nav_dashboard %}{% endblock %}">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7" />
+                            <rect x="14" y="3" width="7" height="7" />
+                            <rect x="14" y="14" width="7" height="7" />
+                            <rect x="3" y="14" width="7" height="7" />
+                        </svg></span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="{% url 'panel:conversation_list' %}"
+                    class="sidebar-link {% block nav_conversations %}{% endblock %}" style="position: relative;">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg></span>
+                    <span>Conversaciones</span>
+                    <span id="global-unread-badge"
+                        style="display:{% if global_unread_count > 0 %}inline-flex{% else %}none{% endif %}; position:absolute; top:6px; right:10px; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--primary); color:#fff; font-size:10px; font-weight:700; align-items:center; justify-content:center;">{% if global_unread_count > 99 %}99+ {% else %} {{ global_unread_count }}{% endif %}</span>
+                </a>
+                <a href="{% url 'panel:contact_list' %}" class="sidebar-link {% block nav_contacts %}{% endblock %}">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg></span>
+                    <span>Contactos</span>
+                </a>
+                <a href="{% url 'panel:menu_config' %}" class="sidebar-link {% block nav_menu %}{% endblock %}">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6" />
+                            <line x1="8" y1="12" x2="21" y2="12" />
+                            <line x1="8" y1="18" x2="21" y2="18" />
+                            <line x1="3" y1="6" x2="3.01" y2="6" />
+                            <line x1="3" y1="12" x2="3.01" y2="12" />
+                            <line x1="3" y1="18" x2="3.01" y2="18" />
+                        </svg></span>
+                    <span>Menú</span>
+                </a>
+                <a href="{% url 'panel:simulator' %}" class="sidebar-link {% block nav_simulator %}{% endblock %}">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M10 2v7.31" />
+                            <path d="M14 9.3V1.99" />
+                            <path d="M8.5 2h7" />
+                            <path d="M14 9.3a6.5 6.5 0 1 1-4 0" />
+                        </svg></span>
+                    <span>Simulador</span>
+                </a>
+                {% if can_manage_agents %}
+                <a href="{% url 'panel:agent_list' %}" class="sidebar-link {% block nav_agents %}{% endblock %}">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg></span>
+                    <span>Agentes</span>
+                </a>
+                <a href="{% url 'panel:agent_create' %}" class="sidebar-link sidebar-sublink"
+                    style="padding-left: 44px; font-size: 13px; opacity: 0.8;">
+                    <span class="icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg></span>
+                    <span>Nuevo agente</span>
+                </a>
+                {% endif %}
+                {% if is_admin %}
+                <a href="{% url 'panel:settings' %}" class="sidebar-link {% block nav_settings %}{% endblock %}">
+                    <span class="icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="3" />
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        </svg></span>
+                    <span>Configuración</span>
+                </a>
+                {% endif %}
+
+            </nav>
+            <div class="sidebar-bottom">
+                <button class="theme-toggle" onclick="toggleTheme()">
+                    <span class="icon" id="themeIcon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                        </svg></span>
+                    <span id="themeLabel">Modo oscuro</span>
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+
+
+
+    </div>
+
+    <script>
+        // Theme toggle
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', next);
+            localStorage.setItem('theme', next);
+            updateThemeUI(next);
+        }
+
+        function updateThemeUI(theme) {
+            var icon = document.getElementById('themeIcon');
+            var label = document.getElementById('themeLabel');
+            var mobileIcon = document.getElementById('mobileThemeIcon');
+            var sunSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>';
+            var moonSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+            if (icon) {
+                icon.innerHTML = theme === 'dark' ? sunSvg : moonSvg;
+            }
+            if (mobileIcon) {
+                mobileIcon.innerHTML = theme === 'dark' ? sunSvg : moonSvg;
+            }
+            if (label) label.textContent = theme === 'dark' ? 'Modo claro' : 'Modo oscuro';
+        }
+
+        // Badge global de mensajes no leídos
+        document.addEventListener('unread-count-changed', function (e) {
+            var badge = document.getElementById('global-unread-badge');
+            if (!badge) return;
+            if (e.detail.count > 0) {
+                badge.textContent = e.detail.count > 99 ? '99+' : e.detail.count;
+                badge.style.display = 'inline-flex';
+            } else {
+                badge.style.display = 'none';
+            }
+        });
+
+        // Polling global de badge (solo en páginas que NO son conversaciones)
+        (function() {
+            // Si estamos en la página de conversaciones, ya tiene su propio polling
+            if (window.location.pathname.indexOf('/conversaciones/') === -1 ||
+                window.location.pathname.match(/\/conversaciones\/.+\//)) {
+                // Estamos en otra sección o en el detail → polling ligero del badge
+                function pollUnreadBadge() {
+                    fetch('/panel/conversaciones/actualizaciones/')
+                        .then(function(res) { return res.json(); })
+                        .then(function(data) {
+                            var count = data.total_unread || 0;
+                            document.dispatchEvent(new CustomEvent('unread-count-changed', { detail: { count: count } }));
+                        })
+                        .catch(function() {});
+                }
+                setInterval(pollUnreadBadge, 10000);
+                // Primer poll al cargar
+                setTimeout(pollUnreadBadge, 2000);
+            }
+        })();
+
+        // Load saved theme
+        const saved = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+        updateThemeUI(saved);
+
+        // Mobile menu
+        function toggleMobileMenu() {
+            var sidebar = document.getElementById('mainSidebar');
+            var overlay = document.getElementById('sidebarOverlay');
+            var isOpen = sidebar.classList.contains('open');
+            sidebar.classList.toggle('open', !isOpen);
+            overlay.classList.toggle('open', !isOpen);
+        }
+
+        // Close mobile menu on link click
+        document.querySelectorAll('.sidebar-link').forEach(function (link) {
+            link.addEventListener('click', function () {
+                var sidebar = document.getElementById('mainSidebar');
+                var overlay = document.getElementById('sidebarOverlay');
+                if (sidebar) sidebar.classList.remove('open');
+                if (overlay) overlay.classList.remove('open');
+            });
+        });
+
+        // Service Worker registration (PWA) & Web Push
+        const VAPID_PUBLIC_KEY = '{{ VAPID_PUBLIC_KEY }}';
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/\-/g, '+')
+                .replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+
+        if ('serviceWorker' in navigator && 'PushManager' in window) {
+            console.log("Service Worker y PushManager soportados. Intentando registrar...");
+            if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+                console.warn("Service Worker requiere HTTPS para funcionar correctamente (excepto en localhost). PWA y Push Notifications pueden no funcionar.");
+            }
+            navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                .then(function (registration) {
+                    console.log('SW Registrado exitosamente con scope:', registration.scope);
+
+                    if (Notification.permission === 'default') {
+                        console.log("Solicitando permiso de notificaciones...");
+                        Notification.requestPermission().then(function (permission) {
+                            console.log("Permiso de notificaciones:", permission);
+                            if (permission === 'granted') {
+                                subscribeUserToPush(registration);
+                            }
+                        });
+                    } else if (Notification.permission === 'granted') {
+                        console.log("Permiso de notificaciones ya otorgado. Suscribiendo...");
+                        subscribeUserToPush(registration);
+                    } else {
+                        console.log("Permiso de notificaciones denegado o bloqueado.");
+                    }
+                })
+                .catch(function (err) {
+                    console.error('Service Worker Registration Error:', err);
+                });
+        } else {
+            console.warn("Service Worker o PushManager NO soportados en este navegador.");
+        }
+
+        function subscribeUserToPush(registration) {
+            const subscribeOptions = {
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+            };
+
+            registration.pushManager.subscribe(subscribeOptions).then(
+                function (pushSubscription) {
+                    // Enviar al backend
+                    fetch('/panel/push/subscribe/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            subscription: pushSubscription
+                        })
+                    }).then(response => {
+                        console.log('Suscripción Web Push enviada al servidor.');
+                    }).catch(err => console.error('Error enviando suscripción', err));
+                }
+            ).catch(function (err) {
+                console.log('Fallo al suscribirse a Push', err);
+            });
+        }
+
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+
+</html>

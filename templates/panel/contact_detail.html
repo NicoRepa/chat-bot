@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}Perfil de Contacto: {{ contact.name|default:contact.external_id }}{% endblock %}
+{% block nav_contacts %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+        <div style="display: flex; gap: 16px; align-items: center; min-width: 0;">
+            <div
+                style="width: 48px; height: 48px; min-width: 48px; border-radius: 50%; background: var(--primary-bg); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 20px; font-weight: 600;">
+                {{ contact.name|first|default:"?" }}
+            </div>
+            <div style="min-width: 0;">
+                <h1 style="margin: 0; font-size: 20px; line-height: 1.2;">{{ contact.name|default:"Sin nombre" }}</h1>
+                <p style="margin: 4px 0 0 0; color: var(--text-secondary); font-size: 13px; word-break: break-all;">
+                    {{ contact.get_platform_display }} · ID: {{ contact.external_id }}
+                </p>
+                <div style="display: flex; gap: 12px; margin-top: 8px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap;">
+                    {% if contact.phone %}<span>📞 {{ contact.phone }}</span>{% endif %}
+                    {% if contact.email %}<span>✉️ {{ contact.email }}</span>{% endif %}
+                </div>
+            </div>
+        </div>
+        <a href="{% url 'panel:contact_list' %}" class="btn btn-outline btn-sm">← Volver</a>
+    </div>
+</div>
+
+<div class="contact-detail-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 24px;">
+
+    <!-- Lado Izquierdo: Conversaciones -->
+    <div>
+        <h2 style="font-size: 18px; margin-bottom: 16px;">Historial de Conversaciones</h2>
+        <div class="card">
+            {% if conversations %}
+            <table class="conversations-table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Resumen</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for conv in conversations %}
+                    <tr onclick="window.location='{% url 'panel:conversation_detail' conv.id %}'">
+                        <td style="white-space: nowrap;">{{ conv.created_at|date:"d M Y, H:i" }}</td>
+                        <td style="color: var(--text-secondary); font-size: 13px;">{{ conv.summary|default:"Sin resumen"|truncatechars:80 }}</td>
+                        <td><span class="status-badge {{ conv.status }}">{{ conv.get_status_display }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="text-align: center; color: var(--text-muted); padding: 32px;">No hay conversaciones registradas.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Lado Derecho: Notas -->
+    <div>
+        <h2 style="font-size: 18px; margin-bottom: 16px;">Notas Internas</h2>
+        <div class="card" style="margin-bottom: 24px;">
+            <form method="post">
+                {% csrf_token %}
+                <textarea name="note" class="filter-input"
+                    style="width: 100%; height: 80px; resize: vertical; margin-bottom: 12px;"
+                    placeholder="Agregá una nota sobre este contacto..." required></textarea>
+                <div style="text-align: right;">
+                    <button type="submit" class="btn btn-primary btn-sm">Guardar Nota</button>
+                </div>
+            </form>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            {% for note in notes %}
+            <div class="card" style="padding: 16px; background: rgba(0,0,0,0.02);">
+                <div
+                    style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; color: var(--text-muted);">
+                    <strong>{{ note.author.first_name|default:note.author.username }}</strong>
+                    <span>{{ note.created_at|date:"d M Y, H:i" }}</span>
+                </div>
+                <p style="font-size: 14px; line-height: 1.5; color: var(--text-color);">{{ note.content|linebreaksbr }}
+                </p>
+            </div>
+            {% empty %}
+            <p style="text-align: center; color: var(--text-muted); font-size: 13px;">No hay notas para este contacto.
+            </p>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

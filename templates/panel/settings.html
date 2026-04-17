@@ -1,0 +1,661 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración{% endblock %}
+{% block nav_settings %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .settings-grid {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: 24px;
+    }
+
+    .settings-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .settings-nav-link {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        border-radius: var(--radius);
+        color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 500;
+        transition: var(--transition);
+        cursor: pointer;
+    }
+
+    .settings-nav-link:hover {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+    }
+
+    .settings-nav-link.active {
+        background: var(--primary-bg);
+        color: var(--primary);
+        font-weight: 600;
+    }
+
+    .settings-nav-link svg {
+        width: 16px;
+        height: 16px;
+        flex-shrink: 0;
+    }
+
+    .settings-section {
+        display: none;
+    }
+
+    .settings-section.active {
+        display: block;
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+    }
+
+    .form-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+    }
+
+    .form-hint {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 4px;
+    }
+
+    .form-input,
+    .form-textarea,
+    .form-select {
+        width: 100%;
+        padding: 10px 12px;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        font-size: 13px;
+        color: var(--text-primary);
+        font-family: inherit;
+        transition: var(--transition);
+    }
+
+    .form-input:focus,
+    .form-textarea:focus,
+    .form-select:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px var(--primary-bg);
+    }
+
+    .form-textarea {
+        min-height: 120px;
+        resize: vertical;
+        line-height: 1.6;
+    }
+
+    .form-textarea.large {
+        min-height: 200px;
+    }
+
+    .save-bar {
+        position: sticky;
+        bottom: 0;
+        padding: 16px 0;
+        margin-top: 24px;
+        border-top: 1px solid var(--border);
+        background: var(--bg-body);
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .save-msg {
+        font-size: 13px;
+        color: var(--success);
+        margin-left: 8px;
+    }
+
+    @media (max-width: 768px) {
+        .settings-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+        </svg>
+        Configuración
+    </h1>
+    {% if business %}<p>{{ business.name }}</p>{% endif %}
+</div>
+
+{% if not business %}
+<div class="card" style="text-align: center; padding: 48px;">
+    <h2 style="font-size: 18px; margin-bottom: 12px;">No hay negocios</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">Creá un negocio para empezar.</p>
+    <a href="/admin/core/business/add/" class="btn btn-primary">+ Crear Negocio</a>
+</div>
+{% else %}
+
+{% if saved %}
+<div
+    style="padding: 10px 16px; background: var(--success-bg); border: 1px solid rgba(45,164,78,0.2); border-radius: var(--radius); margin-bottom: 20px; display: flex; align-items: center; gap: 8px;">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2">
+        <polyline points="20 6 9 17 4 12" />
+    </svg>
+    <span style="font-size: 13px; color: var(--success); font-weight: 500;">Configuración guardada correctamente</span>
+</div>
+{% endif %}
+
+<div class="settings-grid">
+    <!-- Nav lateral -->
+    <div>
+        <div class="card" style="padding: 12px;">
+            <nav class="settings-nav">
+                <a class="settings-nav-link active" data-section="general" onclick="showSection('general')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                        <polyline points="9 22 9 12 15 12 15 22" />
+                    </svg>
+                    General
+                </a>
+                <a class="settings-nav-link" data-section="ai" onclick="showSection('ai')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M12 2a4 4 0 0 1 4 4c0 1.95-2 3-2 5h-4c0-2-2-3.05-2-5a4 4 0 0 1 4-4z" />
+                        <line x1="10" y1="17" x2="14" y2="17" />
+                        <line x1="10" y1="20" x2="14" y2="20" />
+                        <line x1="11" y1="23" x2="13" y2="23" />
+                    </svg>
+                    Inteligencia Artificial
+                </a>
+                <a class="settings-nav-link" data-section="knowledge" onclick="showSection('knowledge')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    </svg>
+                    Base de conocimiento
+                </a>
+                <a class="settings-nav-link" data-section="greeting" onclick="showSection('greeting')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    Saludo y menú
+                </a>
+                <a class="settings-nav-link" data-section="webhook" onclick="showSection('webhook')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                    </svg>
+                    WhatsApp / API
+                </a>
+                <a class="settings-nav-link" data-section="automation" onclick="showSection('automation')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3" />
+                        <path
+                            d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.73 12.73l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                    </svg>
+                    Automatización
+                </a>
+                <a class="settings-nav-link" data-section="messages" onclick="showSection('messages')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        <line x1="9" y1="10" x2="15" y2="10" />
+                        <line x1="12" y1="7" x2="12" y2="13" />
+                    </svg>
+                    Mensajes automáticos
+                </a>
+                <a class="settings-nav-link" data-section="schedule" onclick="showSection('schedule')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    Horarios de atención
+                </a>
+                <a class="settings-nav-link" data-section="tags" onclick="showSection('tags')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                    Etiquetas (Tags)
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Contenido -->
+    <div style="display: flex; flex-direction: column; min-width: 0;">
+        <form method="post" action="{% url 'panel:settings' %}">
+            {% csrf_token %}
+
+            <!-- General -->
+            <div id="section-general" class="settings-section active">
+            <div class="card">
+                <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 20px;">Información del negocio</h2>
+
+                <div class="form-group">
+                    <label class="form-label">Nombre del negocio</label>
+                    <input type="text" name="business_name" class="form-input" value="{{ business.name }}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Rubro / Industria</label>
+                    <input type="text" name="industry" class="form-input" value="{{ business.industry }}"
+                        placeholder="Ej: Odontología, Taller de chapa y pintura...">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Dirección</label>
+                    <input type="text" name="address" class="form-input" value="{{ business.address }}"
+                        placeholder="Ej: Av. Corrientes 1234, CABA">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Teléfono</label>
+                    <input type="text" name="phone" class="form-input" value="{{ business.phone }}"
+                        placeholder="+54 11 1234-5678">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" value="{{ business.email }}"
+                        placeholder="contacto@negocio.com">
+                </div>
+            </div>
+        </div>
+
+        <!-- IA -->
+        <div id="section-ai" class="settings-section">
+            <div class="card">
+                <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 20px;">Configuración de la IA</h2>
+
+                <div class="form-group">
+                    <label class="form-label">Modelo de IA</label>
+                    <select name="ai_model" class="form-select">
+                        <option value="gpt-4o-mini" {% if config.ai_model == 'gpt-4o-mini' %}selected{% endif %}>GPT-4o
+                            Mini (recomendado)</option>
+                        <option value="gpt-4o" {% if config.ai_model == 'gpt-4o' %}selected{% endif %}>GPT-4o</option>
+                        <option value="gpt-3.5-turbo" {% if config.ai_model == 'gpt-3.5-turbo' %}selected{% endif %}>
+                            GPT-3.5 Turbo</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Instrucciones para la IA</label>
+                    <textarea name="system_prompt" class="form-textarea"
+                        placeholder="Ej: Sos amable y profesional. Cuando alguien pregunte por turnos, pedile nombre y teléfono...">{{ config.system_prompt }}</textarea>
+                    <p class="form-hint">Estas instrucciones le dicen a la IA cómo comportarse. Sé específico.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Temperatura (creatividad)</label>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <input type="range" name="temperature" min="0" max="1" step="0.1"
+                            value="{{ config.temperature }}" style="flex: 1;"
+                            oninput="this.nextElementSibling.textContent = this.value">
+                        <span style="font-weight: 600; min-width: 30px;">{{ config.temperature }}</span>
+                    </div>
+                    <p class="form-hint">0 = respuestas exactas, 1 = respuestas más creativas. Recomendado: 0.7</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Knowledge base -->
+        <div id="section-knowledge" class="settings-section">
+            <div class="card">
+                <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Base de conocimiento</h2>
+                <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">
+                    Cargá toda la información que la IA debe saber de tu negocio. Precios, horarios, servicios,
+                    preguntas frecuentes, etc.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">Información del negocio</label>
+                    <textarea name="knowledge_base" class="form-textarea large" placeholder="Ejemplo:
+- Horarios: Lunes a Viernes 9 a 18hs, Sábados 9 a 13hs
+- Servicios: Limpieza dental ($15.000), Blanqueamiento ($45.000), Ortodoncia (consultar)
+- Turnos: Se sacan por WhatsApp o llamando al 11-1234-5678
+- Medios de pago: Efectivo, transferencia, Mercado Pago, tarjeta
+- Requisitos primera consulta: DNI y obra social
+...">{{ config.knowledge_base }}</textarea>
+                    <p class="form-hint">Mientras más detallada sea la información, mejores serán las respuestas de la
+                        IA. Podés usar listas, preguntas frecuentes o texto libre.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Saludo y menú -->
+        <div id="section-greeting" class="settings-section">
+            <div class="card">
+                <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 20px;">Saludo y menú interactivo</h2>
+
+                <div class="form-group">
+                    <label class="form-label">Mensaje de saludo</label>
+                    <textarea name="greeting_message" class="form-textarea" style="min-height: 80px;"
+                        placeholder="¡Hola! 👋 Bienvenido/a a nuestro negocio. ¿En qué te puedo ayudar?">{{ config.greeting_message }}</textarea>
+                    <p class="form-hint">Se envía cuando alguien escribe por primera vez. Si dejás vacío, se genera uno
+                        automático.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="menu_enabled" {% if config.menu_enabled %}checked{% endif %}
+                            style="width: 16px; height: 16px;">
+                        Menú interactivo activado
+                    </label>
+                    <p class="form-hint">Si está activado, después del saludo se muestra un menú con opciones numeradas.
+                    </p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="menu_force_selection" {% if config.menu_force_selection %}checked{% endif %}
+                            style="width: 16px; height: 16px;">
+                        Obligar a elegir del menú
+                    </label>
+                    <p class="form-hint">Si está activado, el cliente debe escribir un número para avanzar. Si no, puede escribir texto libre y la IA responde directamente.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Mensaje de reactivación del menú</label>
+                    <input type="text" name="menu_reactivation_message" class="form-input" value="{{ config.menu_reactivation_message }}" placeholder="📋 Escribí 1 para volver al menú.">
+                    <p class="form-hint">Se agrega al final de cada respuesta de la IA. Dejá vacío para no mostrarlo.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mensajes automáticos -->
+        <div id="section-messages" class="settings-section">
+            <div class="card">
+                <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 20px;">Mensajes automáticos</h2>
+
+                <div class="form-group">
+                    <label class="form-label">Mensaje de bienvenida recurrente</label>
+                    <textarea name="welcome_back_message" class="form-textarea" style="min-height: 80px;"
+                        placeholder="¡Hola de nuevo! 👋 ¿En qué te puedo ayudar hoy?">{{ config.welcome_back_message }}</textarea>
+                    <p class="form-hint">Se envía cuando un contacto que ya escribió antes vuelve a escribir. Vacío = se usa el saludo normal.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Mensaje de derivación a humano</label>
+                    <textarea name="escalation_message" class="form-textarea" style="min-height: 80px;"
+                        placeholder="👤 Te comunico con un agente...">{{ config.escalation_message }}</textarea>
+                    <p class="form-hint">Se envía cuando la conversación se deriva a un humano.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Mensaje fuera de horario</label>
+                    <textarea name="out_of_hours_message" class="form-textarea" style="min-height: 80px;"
+                        placeholder="Gracias por escribirnos. Nuestro horario de atención es...">{{ config.out_of_hours_message }}</textarea>
+                    <p class="form-hint">Se envía automáticamente fuera del horario configurado. Vacío = no se envía.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- WhatsApp / API -->
+        <div id="section-webhook" class="settings-section">
+            <div class="card">
+                <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">WhatsApp / API</h2>
+                <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">
+                    Configurá la conexión directa con la WhatsApp Cloud API de Meta para recibir y enviar mensajes.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">WhatsApp Phone Number ID</label>
+                    <input type="text" name="whatsapp_phone_id" class="form-input" value="{{ config.whatsapp_phone_id }}"
+                        placeholder="Ej: 123456789012345">
+                    <p class="form-hint">Se encuentra en Meta Business → WhatsApp → Configuración de la API. Es el ID del número de teléfono.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">WhatsApp Access Token</label>
+                    <input type="password" name="whatsapp_token" class="form-input" value="{{ config.whatsapp_token }}"
+                        placeholder="Token de acceso permanente de la Cloud API">
+                    <p class="form-hint">Token permanente generado desde Meta Business → Configuración del sistema → Tokens de acceso.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">WhatsApp Verify Token</label>
+                    <input type="text" name="whatsapp_verify_token" class="form-input" value="{{ config.whatsapp_verify_token }}"
+                        placeholder="Un token secreto elegido por vos">
+                    <p class="form-hint">Este token lo elegís vos. Se usa para verificar el webhook en Meta Business → WhatsApp → Configuración → Webhook.</p>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;">
+
+                <div class="form-group">
+                    <label class="form-label">URL del webhook para Meta</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" class="form-input"
+                            value="{{ request.scheme }}://{{ request.get_host }}/api/whatsapp/webhook/" readonly
+                            style="background: var(--bg-body);">
+                        <button type="button" class="btn btn-outline btn-sm"
+                            onclick="navigator.clipboard.writeText(this.previousElementSibling.value)">Copiar</button>
+                    </div>
+                    <p class="form-hint">Configurá esta URL en Meta Business → WhatsApp → Configuración → Webhook como la URL de callback.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">API Key (webhook genérico)</label>
+                    <input type="text" name="webhook_secret" class="form-input" value="{{ config.webhook_secret }}"
+                        placeholder="Clave secreta para autenticar requests">
+                    <p class="form-hint">Se envía en el header X-API-Key para autenticar mensajes entrantes al webhook genérico (/api/webhooks/incoming/).</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Slug del negocio</label>
+                    <input type="text" class="form-input" value="{{ business.slug }}" readonly
+                        style="background: var(--bg-body);">
+                    <p class="form-hint">Usá este slug en el campo "business_slug" del JSON para el webhook genérico.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Automatización -->
+        <div id="section-automation" class="settings-section">
+            <div class="card">
+                <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Automatización</h2>
+                <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">Configurá reglas
+                    automáticas para el chatbot y la gestión de conversaciones.</p>
+
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="auto_assign_enabled" {% if config.auto_assign_enabled %}checked{% endif %} style="width: 16px; height: 16px;">
+                        Auto-asignación inteligente
+                    </label>
+                    <p class="form-hint">Cuando un cliente pide hablar con un humano, asignar automáticamente al agente
+                        con menos carga y la especialización que coincida con la clasificación de la conversación.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Límite de mensajes IA</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="number" name="ai_max_messages" class="form-input"
+                            value="{{ config.ai_max_messages }}" min="0" style="max-width: 100px;">
+                        <span style="font-size: 13px; color: var(--text-secondary);">mensajes</span>
+                    </div>
+                    <p class="form-hint">Si la IA no puede resolver en N mensajes, deriva automáticamente a un humano. 0
+                        = sin límite.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Auto-cierre por inactividad</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="number" name="auto_close_hours" class="form-input"
+                            value="{{ config.auto_close_hours }}" min="0" style="max-width: 100px;">
+                        <span style="font-size: 13px; color: var(--text-secondary);">horas</span>
+                    </div>
+                    <p class="form-hint">Cierra conversaciones sin actividad después de X horas. 0 = desactivado.
+                        Requiere ejecutar: <code>python manage.py auto_close</code> (con cron cada hora).</p>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;">
+
+                <h3
+                    style="font-size: 14px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 6px;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    Modo de operación de agentes
+                </h3>
+
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="supervisor_only_mode" {% if config.supervisor_only_mode %}checked{% endif %} style="width: 16px; height: 16px;">
+                        Modo solo supervisores
+                    </label>
+                    <p class="form-hint">Si está activo, no se auto-asignan conversaciones y todos los usuarios ven
+                        todas las conversaciones. Ideal para empresas sin agentes.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Visibilidad de agentes</label>
+                    <select name="agent_visibility_mode" class="form-select" style="max-width: 340px;">
+                        <option value="all" {% if config.agent_visibility_mode == 'all' %}selected{% endif %}>Ver no
+                            asignadas + propias</option>
+                        <option value="assigned_only" {% if config.agent_visibility_mode == 'assigned_only' %}selected{% endif %}>Solo las asignadas</option>
+                    </select>
+                    <p class="form-hint">Controla qué conversaciones puede ver un agente. "Solo las asignadas" = el
+                        agente solo ve lo que le fue asignado por un supervisor.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Horarios -->
+        <div id="section-schedule" class="settings-section">
+            <div class="card">
+                <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 20px;">Horarios de Atención</h2>
+                
+                <div class="form-group" style="margin-bottom: 24px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="business_hours_enabled" {% if config.business_hours_enabled %}checked{% endif %} style="width: 16px; height: 16px;">
+                        Habilitar evaluación de horarios de atención
+                    </label>
+                    <p class="form-hint">Si está desactivado, la IA responderá siempre normalmente sin tener en cuenta horarios.</p>
+                </div>
+
+                <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">
+                    Configurá los días y horarios en los que hay agentes disponibles. Fuera de este horario, la IA seguirá respondiendo, pero enviará el mensaje configurado informando que no hay agentes.
+                </p>
+
+                <div class="form-group">
+                    <label class="form-label">Mensaje de "fuera de horario"</label>
+                    <textarea name="out_of_hours_message" class="form-textarea" rows="2"
+                        placeholder="Ej: ⏰ Estamos fuera de horario de atención. La IA responderá tus dudas pero no hay agentes disponibles.">{{ config.out_of_hours_message }}</textarea>
+                </div>
+
+                <div class="schedule-table">
+                    {% for day in config.business_hours %}
+                    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                        <div style="width: 120px;">
+                            <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; text-transform: capitalize;">
+                                <input type="checkbox" name="schedule_{{ day.day }}_enabled" {% if day.enabled %}checked{% endif %} style="width: 16px; height: 16px;">
+                                {{ day.day }}
+                            </label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <input type="time" name="schedule_{{ day.day }}_start" value="{{ day.start }}" class="form-input" style="width: 110px;">
+                            <span style="color: var(--text-secondary);">a</span>
+                            <input type="time" name="schedule_{{ day.day }}_end" value="{{ day.end }}" class="form-input" style="width: 110px;">
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="save-bar">
+            <button type="submit" class="btn btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Guardar cambios
+            </button>
+        </div>
+    </form>
+    
+    <!-- Etiquetas (Tags) -->
+    <div id="section-tags" class="settings-section">
+        <div class="card">
+            <h2 style="font-size: 16px; font-weight: 600; margin-bottom: 20px;">Etiquetas (Tags)</h2>
+            <p style="color: var(--text-secondary); font-size: 13px; margin-bottom: 20px;">
+                Creá etiquetas personalizadas para organizar tus conversaciones.
+            </p>
+
+            <form method="post" action="{% url 'panel:tag_create' %}">
+                {% csrf_token %}
+                <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 24px;">
+                    <div class="form-group" style="margin-bottom: 0; flex: 1;">
+                        <label class="form-label">Nombre de la etiqueta</label>
+                        <input type="text" name="name" class="form-input" placeholder="Ej: Urgente, VIP, Consulta..." required>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0; width: 60px;">
+                        <label class="form-label">Color</label>
+                        <input type="color" name="color" class="form-input" value="#3B82F6" style="padding: 2px 4px; height: 38px; cursor: pointer;">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn btn-primary" style="height: 38px;">Crear etiqueta</button>
+                    </div>
+                </div>
+            </form>
+
+            <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px; padding-top: 16px; border-top: 1px solid var(--border);">Tus Etiquetas</h3>
+            {% if business.tags.all %}
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                {% for tag in business.tags.all %}
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-body); border-radius: var(--radius); border: 1px solid var(--border);">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="width: 12px; height: 12px; border-radius: 50%; background-color: {{ tag.color }};"></span>
+                        <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">{{ tag.name }}</span>
+                    </div>
+                    <form method="post" action="{% url 'panel:tag_delete' tag.id %}" style="margin: 0;" onsubmit="return confirm('¿Seguro que querés eliminar esta etiqueta?');">
+                        {% csrf_token %}
+                        <button type="submit" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center;" title="Eliminar etiqueta">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="font-size: 13px; color: var(--text-muted); font-style: italic;">No tenés etiquetas creadas aún.</p>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+</div>
+
+{% endif %}
+
+<script>
+    function showSection(name) {
+        document.querySelectorAll('.settings-section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.settings-nav-link').forEach(l => l.classList.remove('active'));
+        document.getElementById('section-' + name).classList.add('active');
+        document.querySelector('[data-section="' + name + '"]').classList.add('active');
+    }
+</script>
+{% endblock %}

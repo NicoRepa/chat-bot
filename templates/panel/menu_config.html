@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+
+{% block title %}Menú Interactivo{% endblock %}
+{% block nav_menu %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 8px; vertical-align: bottom;"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Menú Interactivo</h1>
+    <p>{{ business.name }} · Configurá las categorías y subcategorías del chatbot</p>
+</div>
+
+<div style="margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap;">
+    <button onclick="toggleForm('addCategoryForm')" class="btn btn-primary btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar Categoría
+    </button>
+    <a href="{% url 'panel:settings' %}" class="btn btn-outline btn-sm">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Configurar Saludo
+    </a>
+</div>
+
+<!-- Form: Nueva Categoría -->
+<div id="addCategoryForm" class="card menu-form-card" style="display: none; margin-bottom: 20px;">
+    <h3 style="font-size: 14px; margin-bottom: 12px;">Nueva Categoría</h3>
+    <form method="post" action="{% url 'panel:menu_category_create' %}">
+        {% csrf_token %}
+        <div class="menu-form-grid">
+            <input type="text" name="name" placeholder="Nombre *" required class="menu-input">
+            <input type="text" name="emoji" placeholder="Emoji" class="menu-input" style="max-width: 80px;">
+            <input type="number" name="order" placeholder="Orden" value="0" class="menu-input" style="max-width: 80px;">
+            <label class="menu-check"><input type="checkbox" name="is_active" checked> Activa</label>
+        </div>
+        <input type="text" name="description" placeholder="Descripción (opcional)" class="menu-input" style="width: 100%; margin-top: 8px;">
+        <div style="margin-top: 10px; display: flex; gap: 6px;">
+            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+            <button type="button" onclick="toggleForm('addCategoryForm')" class="btn btn-ghost btn-sm">Cancelar</button>
+        </div>
+    </form>
+</div>
+
+{% if categories %}
+<div style="display: grid; gap: 16px;">
+    {% for category in categories %}
+    <div class="card" id="cat-{{ category.pk }}">
+        <!-- Category Display -->
+        <div class="menu-item-display" id="catDisplay-{{ category.pk }}">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h2 style="font-size: 15px; font-weight: 600;">
+                    {{ category.emoji|safe }} {{ category.name }}
+                    {% if not category.is_active %}<span style="color: var(--text-muted); font-size: 11px;">(Inactiva)</span>{% endif %}
+                </h2>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <span style="color: var(--text-muted); font-size: 11px;">Orden: {{ category.order }}</span>
+                    <button onclick="toggleEdit('cat', '{{ category.pk }}')" class="btn btn-ghost btn-sm" title="Editar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <form method="post" action="{% url 'panel:menu_category_delete' category.pk %}" style="display:inline;" onsubmit="return confirm('Eliminar categoría {{ category.name }}?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost btn-sm" title="Eliminar" style="color: var(--error);">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% if category.description %}
+            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 13px;">{{ category.description }}</p>
+            {% endif %}
+        </div>
+
+        <!-- Category Edit Form (hidden) -->
+        <div class="menu-item-edit" id="catEdit-{{ category.pk }}" style="display: none; margin-bottom: 16px;">
+            <form method="post" action="{% url 'panel:menu_category_update' category.pk %}">
+                {% csrf_token %}
+                <div class="menu-form-grid">
+                    <input type="text" name="name" value="{{ category.name }}" required class="menu-input">
+                    <input type="text" name="emoji" value="{{ category.emoji }}" class="menu-input" style="max-width: 80px;">
+                    <input type="number" name="order" value="{{ category.order }}" class="menu-input" style="max-width: 80px;">
+                    <label class="menu-check"><input type="checkbox" name="is_active" {% if category.is_active %}checked{% endif %}> Activa</label>
+                </div>
+                <input type="text" name="description" value="{{ category.description }}" placeholder="Descripción" class="menu-input" style="width: 100%; margin-top: 8px;">
+                <div style="margin-top: 10px; display: flex; gap: 6px;">
+                    <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                    <button type="button" onclick="toggleEdit('cat', '{{ category.pk }}')" class="btn btn-ghost btn-sm">Cancelar</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Subcategories -->
+        {% if category.subcategories.all %}
+        <div style="display: grid; gap: 6px;">
+            {% for sub in category.subcategories.all %}
+            <div style="background: var(--bg-body); border-radius: var(--radius); border: 1px solid var(--border-light);">
+                <!-- Sub Display -->
+                <div class="menu-item-display" id="subDisplay-{{ sub.pk }}" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px;">
+                    <span>{% if sub.emoji %}{{ sub.emoji|safe }}{% else %}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/></svg>{% endif %}</span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 13px;">{{ sub.name }}</div>
+                        {% if sub.description %}<div style="color: var(--text-muted); font-size: 11px;">{{ sub.description }}</div>{% endif %}
+                    </div>
+                    {% if sub.auto_response %}
+                    <span style="font-size: 10px; color: var(--success); background: var(--success-bg); padding: 2px 8px; border-radius: var(--radius-full);">Auto-resp</span>
+                    {% endif %}
+                    <button onclick="toggleEdit('sub', '{{ sub.pk }}')" class="btn btn-ghost btn-sm" title="Editar" style="padding: 4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <form method="post" action="{% url 'panel:menu_subcategory_delete' sub.pk %}" style="display:inline;" onsubmit="return confirm('Eliminar subcategoría {{ sub.name }}?')">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-ghost btn-sm" title="Eliminar" style="padding: 4px; color: var(--error);">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Sub Edit Form (hidden) -->
+                <div class="menu-item-edit" id="subEdit-{{ sub.pk }}" style="display: none; padding: 10px 14px;">
+                    <form method="post" action="{% url 'panel:menu_subcategory_update' sub.pk %}">
+                        {% csrf_token %}
+                        <div class="menu-form-grid">
+                            <input type="text" name="name" value="{{ sub.name }}" required class="menu-input">
+                            <input type="text" name="emoji" value="{{ sub.emoji }}" class="menu-input" style="max-width: 80px;">
+                            <input type="number" name="order" value="{{ sub.order }}" class="menu-input" style="max-width: 80px;">
+                            <label class="menu-check"><input type="checkbox" name="is_active" {% if sub.is_active %}checked{% endif %}> Activa</label>
+                        </div>
+                        <input type="text" name="description" value="{{ sub.description }}" placeholder="Descripción" class="menu-input" style="width: 100%; margin-top: 6px;">
+                        <textarea name="auto_response" placeholder="Respuesta automática (opcional)" class="menu-input" style="width: 100%; margin-top: 6px; min-height: 50px;">{{ sub.auto_response }}</textarea>
+                        <div style="margin-top: 8px; display: flex; gap: 6px;">
+                            <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+                            <button type="button" onclick="toggleEdit('sub', '{{ sub.pk }}')" class="btn btn-ghost btn-sm">Cancelar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Sub-subcategories (3er nivel) -->
+                {% if sub.children.all %}
+                <div style="margin: 0 14px 10px 30px; display: grid; gap: 4px;">
+                    {% for child in sub.children.all %}
+                    <div style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--border-light); font-size: 12px;">
+                        <!-- Child Display -->
+                        <div class="menu-item-display" id="childDisplay-{{ child.pk }}" style="display: flex; align-items: center; gap: 8px; flex: 1;">
+                            <span>{% if child.emoji %}{{ child.emoji|safe }}{% else %}-{% endif %}</span>
+                            <span style="font-weight: 500;">{{ child.name }}</span>
+                            {% if child.description %}<span style="color: var(--text-muted);">{{ child.description }}</span>{% endif %}
+                            {% if child.auto_response %}<span style="font-size: 9px; color: var(--success); background: var(--success-bg); padding: 1px 6px; border-radius: var(--radius-full);">Auto</span>{% endif %}
+                        </div>
+                        <button onclick="toggleEdit('child', '{{ child.pk }}')" class="btn btn-ghost btn-sm" style="padding: 2px;">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
+                        <form method="post" action="{% url 'panel:menu_subsubcategory_delete' child.pk %}" style="display:inline;" onsubmit="return confirm('Eliminar?')">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-ghost btn-sm" style="padding: 2px; color: var(--error);">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </form>
+                    </div>
+                    <!-- Child Edit Form -->
+                    <div class="menu-item-edit" id="childEdit-{{ child.pk }}" style="display: none; padding: 6px 10px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--primary);">
+                        <form method="post" action="{% url 'panel:menu_subsubcategory_update' child.pk %}">
+                            {% csrf_token %}
+                            <div class="menu-form-grid">
+                                <input type="text" name="name" value="{{ child.name }}" required class="menu-input" style="font-size: 12px;">
+                                <input type="text" name="emoji" value="{{ child.emoji }}" class="menu-input" style="max-width: 60px; font-size: 12px;">
+                                <input type="number" name="order" value="{{ child.order }}" class="menu-input" style="max-width: 60px; font-size: 12px;">
+                                <label class="menu-check" style="font-size: 11px;"><input type="checkbox" name="is_active" {% if child.is_active %}checked{% endif %}> Activa</label>
+                            </div>
+                            <input type="text" name="description" value="{{ child.description }}" placeholder="Descripción" class="menu-input" style="width: 100%; margin-top: 4px; font-size: 12px;">
+                            <textarea name="auto_response" placeholder="Auto-respuesta" class="menu-input" style="width: 100%; margin-top: 4px; font-size: 12px; min-height: 36px;">{{ child.auto_response }}</textarea>
+                            <div style="margin-top: 6px; display: flex; gap: 4px;">
+                                <button type="submit" class="btn btn-primary btn-sm" style="font-size: 11px;">Guardar</button>
+                                <button type="button" onclick="toggleEdit('child', '{{ child.pk }}')" class="btn btn-ghost btn-sm" style="font-size: 11px;">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Add sub-subcategory button -->
+                <div style="margin: 0 14px 8px 30px;">
+                    <button onclick="toggleForm('addChild-{{ sub.pk }}')" class="btn btn-ghost btn-sm" style="font-size: 11px; color: var(--text-muted);">
+                        + Sub-opción
+                    </button>
+                    <div id="addChild-{{ sub.pk }}" style="display: none; margin-top: 6px;">
+                        <form method="post" action="{% url 'panel:menu_subsubcategory_create' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="subcategory_id" value="{{ sub.pk }}">
+                            <div class="menu-form-grid">
+                                <input type="text" name="name" placeholder="Nombre *" required class="menu-input" style="font-size: 12px;">
+                                <input type="text" name="emoji" placeholder="Emoji" class="menu-input" style="max-width: 60px; font-size: 12px;">
+                                <input type="number" name="order" value="0" class="menu-input" style="max-width: 60px; font-size: 12px;">
+                                <label class="menu-check" style="font-size: 11px;"><input type="checkbox" name="is_active" checked> Activa</label>
+                            </div>
+                            <input type="text" name="description" placeholder="Descripción" class="menu-input" style="width: 100%; margin-top: 4px; font-size: 12px;">
+                            <textarea name="auto_response" placeholder="Auto-respuesta (opcional)" class="menu-input" style="width: 100%; margin-top: 4px; font-size: 12px; min-height: 36px;"></textarea>
+                            <div style="margin-top: 6px; display: flex; gap: 4px;">
+                                <button type="submit" class="btn btn-primary btn-sm" style="font-size: 11px;">Crear</button>
+                                <button type="button" onclick="toggleForm('addChild-{{ sub.pk }}')" class="btn btn-ghost btn-sm" style="font-size: 11px;">Cancelar</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-muted); font-size: 12px; text-align: center; padding: 16px;">Sin subcategorías</p>
+        {% endif %}
+
+        <!-- Add subcategory -->
+        <div style="margin-top: 10px;">
+            <button onclick="toggleForm('addSub-{{ category.pk }}')" class="btn btn-ghost btn-sm" style="font-size: 12px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 3px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Agregar subcategoría
+            </button>
+            <div id="addSub-{{ category.pk }}" style="display: none; margin-top: 8px;">
+                <form method="post" action="{% url 'panel:menu_subcategory_create' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="category_id" value="{{ category.pk }}">
+                    <div class="menu-form-grid">
+                        <input type="text" name="name" placeholder="Nombre *" required class="menu-input">
+                        <input type="text" name="emoji" placeholder="Emoji" class="menu-input" style="max-width: 80px;">
+                        <input type="number" name="order" value="0" class="menu-input" style="max-width: 80px;">
+                        <label class="menu-check"><input type="checkbox" name="is_active" checked> Activa</label>
+                    </div>
+                    <input type="text" name="description" placeholder="Descripción" class="menu-input" style="width: 100%; margin-top: 6px;">
+                    <textarea name="auto_response" placeholder="Respuesta automática (opcional)" class="menu-input" style="width: 100%; margin-top: 6px; min-height: 50px;"></textarea>
+                    <div style="margin-top: 8px; display: flex; gap: 6px;">
+                        <button type="submit" class="btn btn-primary btn-sm">Crear</button>
+                        <button type="button" onclick="toggleForm('addSub-{{ category.pk }}')" class="btn btn-ghost btn-sm">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 48px;">
+    <h2 style="margin-bottom: 12px; font-size: 18px;">Sin categorías todavía</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">Creá categorías para activar el menú interactivo.</p>
+    <button onclick="toggleForm('addCategoryForm')" class="btn btn-primary">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: middle; margin-right: 4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Crear primera categoría
+    </button>
+</div>
+{% endif %}
+
+<style>
+    .menu-form-grid {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+    .menu-input {
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--bg-input);
+        color: var(--text-primary);
+        font-size: 13px;
+        font-family: inherit;
+        outline: none;
+    }
+    .menu-input:focus {
+        border-color: var(--primary);
+    }
+    .menu-check {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+    .menu-form-card {
+        border: 1px solid var(--primary);
+        background: var(--primary-bg);
+    }
+    textarea.menu-input {
+        resize: vertical;
+    }
+</style>
+
+<script>
+function toggleForm(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+function toggleEdit(type, id) {
+    var display = document.getElementById(type + 'Display-' + id);
+    var edit = document.getElementById(type + 'Edit-' + id);
+    if (display && edit) {
+        var showing = edit.style.display !== 'none';
+        display.style.display = showing ? '' : 'none';
+        edit.style.display = showing ? 'none' : 'block';
+    }
+}
+</script>
+{% endblock %}

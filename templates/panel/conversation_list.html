@@ -1,0 +1,871 @@
+{% extends "base.html" %}
+
+{% block title %}Conversaciones{% endblock %}
+{% block nav_conversations %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .summary-cell {
+        position: relative;
+        max-width: 260px;
+        cursor: default;
+    }
+
+    tr:has(.summary-cell:hover) {
+        position: relative;
+        z-index: 999;
+    }
+
+    .summary-text {
+        color: var(--text-secondary);
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin: 0;
+
+        opacity: 0.6;
+        transition: filter 0.4s ease, opacity 0.4s ease;
+        user-select: none;
+    }
+
+    .summary-cell:hover .summary-text {
+        filter: blur(0);
+        opacity: 1;
+        user-select: auto;
+    }
+
+    .summary-popup {
+        display: none;
+        position: absolute;
+        z-index: 100;
+        left: 0;
+        top: calc(100% + 10px);
+        min-width: 280px;
+        max-width: 380px;
+        padding: 16px 18px;
+        border-radius: 14px;
+        font-size: 13px;
+        line-height: 1.65;
+        color: var(--text-primary);
+        background-color: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1), 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+
+    .summary-popup::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        left: 24px;
+        width: 12px;
+        height: 12px;
+        background-color: var(--bg-card) !important;
+        border-left: 1px solid var(--border) !important;
+        border-top: 1px solid var(--border) !important;
+        transform: rotate(45deg);
+        z-index: -1;
+    }
+
+    .summary-popup-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        color: var(--primary);
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid rgba(99, 102, 241, 0.15);
+    }
+
+    .summary-cell:hover .summary-popup {
+        display: block;
+    }
+
+    [data-theme="dark"] .summary-popup {
+        background-color: var(--bg-card) !important;
+        border: 1px solid var(--border) !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    [data-theme="dark"] .summary-popup::before {
+        background-color: var(--bg-card) !important;
+        border-left: 1px solid var(--border) !important;
+        border-top: 1px solid var(--border) !important;
+    }
+
+    /* ── Badges de mensajes no leídos ── */
+    .unread-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 10px;
+        background: var(--primary);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        margin-left: 8px;
+        vertical-align: middle;
+        animation: badge-pop 0.3s ease;
+    }
+
+    @keyframes badge-pop {
+        0% {
+            transform: scale(0);
+        }
+
+        70% {
+            transform: scale(1.2);
+        }
+
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    tr.has-unread {
+        background: rgba(99, 102, 241, 0.06) !important;
+    }
+
+    /* ── Toast de mensaje nuevo ── */
+    #msg-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        pointer-events: none;
+    }
+
+    .toast-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        border-radius: 14px;
+        background: var(--bg-card);
+        border: 1px solid rgba(99, 102, 241, 0.3);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+        font-size: 13px;
+        color: var(--text-primary);
+        pointer-events: all;
+        cursor: pointer;
+        animation: toast-in 0.3s ease;
+        max-width: 320px;
+        transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .toast-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: #fff;
+    }
+
+    .toast-name {
+        font-weight: 600;
+    }
+
+    .toast-preview {
+        color: var(--text-secondary);
+        font-size: 12px;
+        margin-top: 2px;
+    }
+
+    @keyframes toast-in {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes toast-out {
+        from {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        to {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+    }
+
+    /* ═══════════════════════════════════════
+       MOBILE CARD LAYOUT for conversation list
+       ═══════════════════════════════════════ */
+    .conv-mobile-cards {
+        display: none;
+    }
+
+    .conv-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 14px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: var(--transition);
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
+
+    .conv-card:hover {
+        box-shadow: var(--shadow);
+        border-color: var(--primary);
+        color: inherit;
+    }
+
+    .conv-card.has-unread {
+        border-left: 3px solid var(--primary);
+        background: rgba(99, 102, 241, 0.04);
+    }
+
+    .conv-card-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .conv-card-header .contact-avatar {
+        width: 38px;
+        height: 38px;
+        font-size: 14px;
+    }
+
+    .conv-card-name {
+        font-weight: 600;
+        font-size: 14px;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .conv-card-time {
+        color: var(--text-muted);
+        font-size: 11px;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .conv-card-badges {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+        align-items: center;
+    }
+
+    .conv-card-summary {
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        padding: 8px 0 0;
+        border-top: 1px solid var(--border-light);
+    }
+
+    .conv-card-summary-label {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--primary);
+        margin-bottom: 2px;
+    }
+
+    .conv-card-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 6px;
+    }
+
+    .conv-card-meta span {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+    }
+
+    /* Filters responsive improvements */
+    @media (max-width: 768px) {
+        .conv-mobile-cards {
+            display: block;
+        }
+
+        .card:has(.conversations-table),
+        .card>.conversations-table {
+            display: none !important;
+        }
+
+        /* Also hide the wrapping .card on mobile */
+        .desktop-table-card {
+            display: none !important;
+        }
+
+        .filters-bar {
+            gap: 8px;
+        }
+
+        .filter-input {
+            min-width: 100%;
+            font-size: 16px;
+            /* prevent iOS zoom */
+        }
+
+        .filter-select {
+            width: 100%;
+            font-size: 16px;
+        }
+
+        .page-header p {
+            display: none;
+        }
+
+        #msg-toast {
+            bottom: 12px;
+            right: 12px;
+            left: 12px;
+        }
+
+        .toast-item {
+            max-width: 100%;
+        }
+    }
+
+    @media (min-width: 769px) {
+        .conv-mobile-cards {
+            display: none !important;
+        }
+    }
+
+    /* Mobile card unread badge */
+    .conv-card-unread-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 20px;
+        height: 20px;
+        padding: 0 6px;
+        border-radius: 10px;
+        background: var(--primary);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        flex-shrink: 0;
+        animation: badge-pop 0.3s ease;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header"
+    style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+    <div>
+        <h1><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                style="margin-right: 8px; vertical-align: bottom;">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg> Conversaciones</h1>
+        <p>{{ business.name }} · Filtrá por clasificación, estado o buscá por nombre</p>
+    </div>
+    <button type="submit" form="filters-form" formaction="{% url 'panel:export_csv' %}" class="btn"
+        style="background-color: #10b981; color: white; border-color: #10b981; font-weight: 600; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);"
+        title="Exportar a CSV">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="margin-right: 6px; vertical-align: middle;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+        </svg> Exportar CSV
+    </button>
+</div>
+
+<form method="get" id="filters-form" class="filters-bar">
+    <input type="text" name="search" value="{{ current_search }}" placeholder="Buscar..." class="filter-input">
+    <select name="classification" class="filter-select" onchange="this.form.submit()">
+        <option value="">Todas las clasificaciones</option>{% for cat in classifications %}<option value="{{ cat.key }}" {% if current_classification == cat.key %}selected{% endif %}>{{ cat.label }}</option>{% endfor %}
+    </select>
+    <select name="status" class="filter-select" onchange="this.form.submit()">
+        <option value="">Todos los estados</option>
+        {% for key, label in status_choices %}
+            <option value="{{ key }}" {% if current_status == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select name="ai" class="filter-select" onchange="this.form.submit()">
+        <option value="">IA / Humano</option>
+        <option value="on" {% if current_ai == "on" %}selected{% endif %}>Con IA</option>
+        <option value="off" {% if current_ai == "off" %}selected{% endif %}>Sin IA</option>
+    </select>
+    <select name="assigned" class="filter-select" onchange="this.form.submit()">
+        <option value="">Cualquier Agente</option>
+        <option value="unassigned" {% if current_assigned == "unassigned" %}selected{% endif %}>Sin Asignar</option>
+        <option value="me" {% if current_assigned == "me" %}selected{% endif %}>Mis Chats</option>
+        {% for agent in agents %}<option value="{{ agent.id }}" {% if current_assigned == agent.id|stringformat:"s" %}selected{% endif %}>{{ agent.first_name|default:agent.username }}</option>{% endfor %}
+    </select>
+    <select name="tag" class="filter-select" onchange="this.form.submit()">
+        <option value="">Todas las Etiquetas</option>
+        {% for tag in tags %}<option value="{{ tag.id }}" {% if current_tag == tag.id|stringformat:"s" %}selected{% endif %}>{{ tag.name }}</option>{% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary btn-sm">Filtrar</button>
+    {% if current_search or current_classification or current_status or current_ai or current_assigned or current_tag %}
+    <a href="{% url 'panel:conversation_list' %}" class="btn btn-ghost btn-sm">Limpiar</a>
+    {% endif %}
+</form>
+
+<!-- ══ DESKTOP: Table layout ══ -->
+<div class="card desktop-table-card">
+    <table class="conversations-table" {% if not conversations %}style="display:none;" {% endif %}>
+        <thead>
+            <tr>
+                <th>Contacto</th>
+                <th>Resumen IA</th>
+                <th>Clasificación</th>
+                <th>Etiquetas</th>
+                <th>Asignado A</th>
+                <th>Estado</th>
+                <th>IA</th>
+                <th>Actividad</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for conv in conversations %}
+            <tr data-conv-id="{{ conv.id }}" data-status="{{ conv.status }}"
+                onclick="window.location='{% url 'panel:conversation_detail' conv.id %}'">
+                <td>
+                    <div class="contact-info">
+                        <div class="contact-avatar">{{ conv.contact.name|first|default:"?" }}</div>
+                        <div>
+                            <div class="contact-name"><a href="{% url 'panel:contact_detail' conv.contact.id %}" style="text-decoration: none; color: inherit;" onclick="event.stopPropagation();">{{conv.contact.name|default:"Sin nombre" }}</a></div>
+                            <div class="contact-id">{{ conv.contact.platform }} · {{conv.contact.external_id|truncatechars:18 }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td class="summary-cell" onclick="event.stopPropagation();">
+                    <p class="summary-text">{{ conv.summary|default:"—" }}</p>
+                    {% if conv.summary %}<div class="summary-popup">
+                        <div class="summary-popup-header"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="10" rx="2" />
+                            <circle cx="12" cy="5" r="2" />
+                            <path d="M12 7v4" />
+                        </svg> Resumen IA</div>{{ conv.summary }}
+                    </div>
+                    {% endif %}
+                </td>
+                <td>{% with info=conv.get_classification_display_info %}<span class="classification-tag"
+                        style="font-size:11px; background: {{ info.color }}15; color: {{ info.color }}; border-color: {{ info.color }}30;">{{info.icon|safe}} {{ info.label }}</span>{% endwith %}</td>
+                <td>
+                    {% for tag in conv.tags.all %}
+                    <span
+                        style="font-size:10.5px; padding:2px 8px; border-radius:12px; font-weight:600; background:{{tag.color}}15; color:{{tag.color}}; border:1px solid {{tag.color}}30; display:inline-block; margin:2px;">{{tag.name }}</span>
+                    {% endfor %}
+                </td>
+                <td>{% if conv.assigned_to %}<span style="font-size: 13px; color: var(--text-secondary);">👤
+                    {{conv.assigned_to.first_name|default:conv.assigned_to.username }}</span>{% else %}<span style="font-size: 13px; color: var(--text-muted); font-style: italic;">Sin asignar</span>{% endif %}</td>
+                <td><span class="status-badge {{ conv.status }}">{{ conv.get_status_display }}</span></td>
+                <td>{% if conv.is_ai_active %}<span class="ai-badge active" title="IA Activa"><svg width="14"
+                            height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="11" width="18" height="10" rx="2" />
+                            <circle cx="12" cy="5" r="2" />
+                            <path d="M12 7v4" />
+                            <line x1="8" y1="16" x2="8.01" y2="16" />
+                            <line x1="16" y1="16" x2="16.01" y2="16" />
+                        </svg></span>{% else %}<span class="ai-badge inactive" title="Humano"><svg width="14"
+                            height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                        </svg></span>{% endif %}</td>
+                <td style="color: var(--text-muted); font-size: 12px; white-space: nowrap;">{{ conv.updated_at|timesince }} atrás</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% if not conversations %}
+    <p id="emptyConvMsg" style="text-align: center; color: var(--text-muted); padding: 48px;">No se encontraron conversaciones.</p>
+    {% endif %}
+</div>
+
+<!-- ══ MOBILE: Card layout ══ -->
+<div class="conv-mobile-cards" id="convMobileCards">
+    {% for conv in conversations %}
+    <a href="{% url 'panel:conversation_detail' conv.id %}" class="conv-card" data-conv-id="{{ conv.id }}">
+        <div class="conv-card-header">
+            <div class="contact-avatar">{{ conv.contact.name|first|default:"?" }}</div>
+            <div class="conv-card-name">{{ conv.contact.name|default:"Sin nombre" }}</div>
+            <div class="conv-card-time">{{ conv.updated_at|timesince }}</div>
+        </div>
+        <div class="conv-card-badges">
+            {% with info=conv.get_classification_display_info %}
+            <span class="classification-tag"
+                style="font-size:10px; padding: 2px 8px; background: {{ info.color }}15; color: {{ info.color }}; border-color: {{ info.color }}30;">{{ info.icon|safe }} {{ info.label }}</span>
+            {% endwith %}
+            {% for tag in conv.tags.all %}
+            <span class="classification-tag"
+                style="font-size:10px; padding: 2px 8px; background: {{tag.color}}15; color: {{tag.color}}; border-color: {{tag.color}}30;">{{ tag.name }}</span>
+            {% endfor %}
+            <span class="status-badge {{ conv.status }}" style="font-size: 10px; padding: 2px 8px;">{{ conv.get_status_display }}</span>
+            {% if conv.is_ai_active %}
+            <span class="ai-badge active" style="font-size: 10px; padding: 2px 6px;">🤖</span>
+            {% else %}
+            <span class="ai-badge inactive" style="font-size: 10px; padding: 2px 6px;">👤</span>
+            {% endif %}
+            {% if conv.assigned_to %}
+            <span style="font-size: 10px; color: var(--text-muted);">→ {{ conv.assigned_to.first_name|default:conv.assigned_to.username }}</span>
+            {% endif %}
+        </div>
+        {% if conv.summary %}
+        <div class="conv-card-summary">
+            <div class="conv-card-summary-label">Resumen IA</div>
+            {{ conv.summary }}
+        </div>
+        {% endif %}
+    </a>
+    {% empty %}
+    <p style="text-align: center; color: var(--text-muted); padding: 48px;">No se encontraron conversaciones.</p>
+    {% endfor %}
+</div>
+
+<div id="msg-toast"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    var POLL_INTERVAL = 5000;
+    var STORAGE_KEY = 'conv_last_seen';
+
+    function getLastSeen() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; }
+        catch (e) { return {}; }
+    }
+
+    function setLastSeen(data) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function showToast(convId, contactName, preview) {
+        var container = document.getElementById('msg-toast');
+        var item = document.createElement('div');
+        item.className = 'toast-item';
+        var safeName = contactName.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        var safePreview = preview.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        item.innerHTML =
+            '<div class="toast-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>' +
+            '<div><div class="toast-name">' + safeName + '</div><div class="toast-preview">' + safePreview + '</div></div>';
+        item.addEventListener('click', function () {
+            window.location.href = '/panel/conversaciones/' + convId + '/';
+        });
+        container.appendChild(item);
+        setTimeout(function () {
+            item.style.animation = 'toast-out 0.3s ease forwards';
+            setTimeout(function () { item.remove(); }, 300);
+        }, 5000);
+    }
+
+    function updateRowBadge(convId, count) {
+        var row = document.querySelector('tr[data-conv-id="' + convId + '"]');
+        if (row) {
+            var oldBadge = row.querySelector('.unread-badge');
+            if (oldBadge) oldBadge.remove();
+            row.classList.remove('has-unread');
+            if (count > 0) {
+                var nameEl = row.querySelector('.contact-name');
+                if (nameEl) {
+                    var badge = document.createElement('span');
+                    badge.className = 'unread-badge';
+                    badge.textContent = count > 99 ? '99+' : count;
+                    nameEl.appendChild(badge);
+                }
+                row.classList.add('has-unread');
+            }
+        }
+        // Also update mobile card
+        var card = document.querySelector('.conv-card[data-conv-id="' + convId + '"]');
+        if (card) {
+            card.classList.toggle('has-unread', count > 0);
+            // Add/update numeric badge in mobile card
+            var existingBadge = card.querySelector('.conv-card-unread-badge');
+            if (count > 0) {
+                if (!existingBadge) {
+                    existingBadge = document.createElement('span');
+                    existingBadge.className = 'conv-card-unread-badge';
+                    var header = card.querySelector('.conv-card-header');
+                    if (header) header.appendChild(existingBadge);
+                }
+                existingBadge.textContent = count > 99 ? '99+' : count;
+            } else if (existingBadge) {
+                existingBadge.remove();
+            }
+        }
+    }
+
+    function buildSvgAI() {
+        return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="16" y1="16" x2="16.01" y2="16"/></svg>';
+    }
+    function buildSvgHuman() {
+        return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    }
+
+    function insertNewRow(conv) {
+        var tbody = document.querySelector('.conversations-table tbody');
+        if (tbody) {
+            var info = conv.classification_info;
+            var safeContactName = (conv.contact_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            var safeSummary = (conv.summary || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            var assignedHtml = conv.assigned_to_display
+                ? '<span style="font-size:13px;color:var(--text-secondary);">👤 ' + conv.assigned_to_display.replace(/</g, '&lt;') + '</span>'
+                : '<span style="font-size:13px;color:var(--text-muted);font-style:italic;">Sin asignar</span>';
+            var tr = document.createElement('tr');
+            tr.setAttribute('data-conv-id', conv.id);
+            tr.setAttribute('data-status', conv.status);
+            tr.style.animation = 'badge-pop 0.4s ease';
+            tr.setAttribute('onclick', "window.location='/panel/conversaciones/" + conv.id + "/'");
+            tr.innerHTML =
+                '<td><div class="contact-info">' +
+                '<div class="contact-avatar">' + conv.contact_initial + '</div>' +
+                '<div>' +
+                '<div class="contact-name"><a href="/panel/contactos/' + conv.contact_id + '/" style="text-decoration:none;color:inherit;" onclick="event.stopPropagation();">' + safeContactName + '</a></div>' +
+                '<div class="contact-id">' + conv.contact_platform + ' · ' + conv.contact_external_id + '</div>' +
+                '</div>' +
+                '</div></td>' +
+                '<td class="summary-cell" onclick="event.stopPropagation();">' +
+                '<p class="summary-text">' + (safeSummary || '—') + '</p>' +
+                (safeSummary ? '<div class="summary-popup"><div class="summary-popup-header"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg> Resumen IA</div>' + safeSummary + '</div>' : '') +
+                '</td>' +
+                '<td><span class="classification-tag" style="font-size:11px;background:' + info.color + '15;color:' + info.color + ';border-color:' + info.color + '30;">' + info.icon + ' ' + info.label + '</span></td>' +
+                '<td>' + assignedHtml + '</td>' +
+                '<td><span class="status-badge ' + conv.status + '">' + conv.status_display + '</span></td>' +
+                '<td><span class="ai-badge ' + (conv.is_ai_active ? 'active' : 'inactive') + '" title="' + (conv.is_ai_active ? 'IA Activa' : 'Humano') + '">' + (conv.is_ai_active ? buildSvgAI() : buildSvgHuman()) + '</span></td>' +
+                '<td style="color:var(--text-muted);font-size:12px;white-space:nowrap;">ahora mismo</td>';
+            var table = document.querySelector('.conversations-table');
+            if (table && table.style.display === 'none') {
+                table.style.display = '';
+            }
+            tbody.insertBefore(tr, tbody.firstChild);
+        }
+
+        // Also insert mobile card
+        var mobileContainer = document.getElementById('convMobileCards');
+        if (mobileContainer) {
+            var info = conv.classification_info;
+            var safeContactName = (conv.contact_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            var safeSummary = (conv.summary || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            var cardHtml = '<a href="/panel/conversaciones/' + conv.id + '/" class="conv-card" data-conv-id="' + conv.id + '">';
+            cardHtml += '<div class="conv-card-header">';
+            cardHtml += '<div class="contact-avatar">' + conv.contact_initial + '</div>';
+            cardHtml += '<div class="conv-card-name">' + safeContactName + '</div>';
+            cardHtml += '<div class="conv-card-time">ahora</div>';
+            cardHtml += '</div>';
+            cardHtml += '<div class="conv-card-badges">';
+            cardHtml += '<span class="classification-tag" style="font-size:10px;padding:2px 8px;background:' + info.color + '15;color:' + info.color + ';border-color:' + info.color + '30;">' + info.icon + ' ' + info.label + '</span>';
+            cardHtml += '<span class="status-badge ' + conv.status + '" style="font-size:10px;padding:2px 8px;">' + conv.status_display + '</span>';
+            cardHtml += conv.is_ai_active ? '<span class="ai-badge active" style="font-size:10px;padding:2px 6px;">🤖</span>' : '<span class="ai-badge inactive" style="font-size:10px;padding:2px 6px;">👤</span>';
+            cardHtml += '</div>';
+            if (safeSummary) {
+                cardHtml += '<div class="conv-card-summary"><div class="conv-card-summary-label">Resumen IA</div>' + safeSummary + '</div>';
+            }
+            cardHtml += '</a>';
+            var temp = document.createElement('div');
+            temp.innerHTML = cardHtml;
+            var newCard = temp.firstChild;
+            mobileContainer.insertBefore(newCard, mobileContainer.firstChild);
+            // Remove empty message if exists
+            var emptyP = mobileContainer.querySelector('p');
+            if (emptyP) emptyP.remove();
+        }
+
+        var emptyMsg = document.getElementById('emptyConvMsg');
+        if (emptyMsg) emptyMsg.remove();
+    }
+
+    function updateRowMeta(conv) {
+        var row = document.querySelector('tr[data-conv-id="' + conv.id + '"]');
+        if (row) {
+            if (row.dataset.status !== conv.status) {
+                var statusSpan = row.querySelector('.status-badge');
+                if (statusSpan) {
+                    statusSpan.className = 'status-badge ' + conv.status;
+                    statusSpan.textContent = conv.status_display;
+                }
+                row.dataset.status = conv.status;
+            }
+            var classTag = row.querySelector('.classification-tag');
+            if (classTag && conv.classification_info) {
+                var info = conv.classification_info;
+                classTag.style.background = info.color + '15';
+                classTag.style.color = info.color;
+                classTag.style.borderColor = info.color + '30';
+                classTag.innerHTML = info.icon + ' ' + info.label;
+            }
+            var summaryText = row.querySelector('.summary-text');
+            if (summaryText) summaryText.textContent = conv.summary || '—';
+            var summaryCell = row.querySelector('.summary-cell');
+            if (summaryCell && conv.summary) {
+                var popup = summaryCell.querySelector('.summary-popup');
+                if (popup) {
+                    var nodes = popup.childNodes;
+                    for (var ni = nodes.length - 1; ni >= 0; ni--) {
+                        if (nodes[ni].nodeType === 3) { nodes[ni].textContent = conv.summary; break; }
+                    }
+                } else {
+                    var newPopup = document.createElement('div');
+                    newPopup.className = 'summary-popup';
+                    newPopup.innerHTML = '<div class="summary-popup-header"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/></svg> Resumen IA</div>';
+                    newPopup.appendChild(document.createTextNode(conv.summary));
+                    summaryCell.appendChild(newPopup);
+                }
+            }
+            var aiSpan = row.querySelector('.ai-badge');
+            if (aiSpan) {
+                if (conv.is_ai_active && aiSpan.classList.contains('inactive')) {
+                    aiSpan.className = 'ai-badge active';
+                    aiSpan.title = 'IA Activa';
+                    aiSpan.innerHTML = buildSvgAI();
+                } else if (!conv.is_ai_active && aiSpan.classList.contains('active')) {
+                    aiSpan.className = 'ai-badge inactive';
+                    aiSpan.title = 'Humano';
+                    aiSpan.innerHTML = buildSvgHuman();
+                }
+            }
+        }
+
+        // Update mobile card too
+        var card = document.querySelector('.conv-card[data-conv-id="' + conv.id + '"]');
+        if (card) {
+            var classTag = card.querySelector('.classification-tag');
+            if (classTag && conv.classification_info) {
+                var info = conv.classification_info;
+                classTag.style.background = info.color + '15';
+                classTag.style.color = info.color;
+                classTag.style.borderColor = info.color + '30';
+                classTag.innerHTML = info.icon + ' ' + info.label;
+            }
+            var statusBadge = card.querySelector('.status-badge');
+            if (statusBadge) {
+                statusBadge.className = 'status-badge ' + conv.status;
+                statusBadge.textContent = conv.status_display;
+            }
+            var summaryDiv = card.querySelector('.conv-card-summary');
+            if (conv.summary) {
+                if (summaryDiv) {
+                    summaryDiv.innerHTML = '<div class="conv-card-summary-label">Resumen IA</div>' + conv.summary.replace(/</g, '&lt;');
+                } else {
+                    var newSummary = document.createElement('div');
+                    newSummary.className = 'conv-card-summary';
+                    newSummary.innerHTML = '<div class="conv-card-summary-label">Resumen IA</div>' + conv.summary.replace(/</g, '&lt;');
+                    card.appendChild(newSummary);
+                }
+            }
+            var timeEl = card.querySelector('.conv-card-time');
+            if (timeEl && conv.updated_at) {
+                timeEl.textContent = timeAgoShort(conv.updated_at);
+            }
+        }
+    }
+
+    function timeAgoShort(dateStr) {
+        if (!dateStr) return '';
+        var d = new Date(dateStr);
+        var now = new Date();
+        var diff = Math.floor((now - d) / 1000);
+        if (diff < 60) return 'ahora';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h';
+        return Math.floor(diff / 86400) + 'd';
+    }
+
+    var isFirstPoll = true;
+
+    function pollConversationUpdates() {
+        fetch('/panel/conversaciones/actualizaciones/')
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                var lastSeen = getLastSeen();
+
+                data.conversations.forEach(function (conv) {
+                    var rowExists = !!document.querySelector('tr[data-conv-id="' + conv.id + '"]') ||
+                        !!document.querySelector('.conv-card[data-conv-id="' + conv.id + '"]');
+                    var seenId = lastSeen[conv.id];
+                    var hasNew = conv.last_msg_id && conv.last_msg_id !== seenId;
+
+                    if (hasNew) {
+                        lastSeen[conv.id] = conv.last_msg_id;
+                        if (!isFirstPoll) {
+                            showToast(conv.id, conv.contact_name, conv.last_msg_preview);
+                        }
+                    }
+
+                    // Always update badges using server-side count
+                    var serverCount = conv.panel_unread_count || 0;
+                    if (!rowExists && !isFirstPoll) {
+                        insertNewRow(conv);
+                    } else if (rowExists) {
+                        updateRowMeta(conv);
+                    }
+                    updateRowBadge(conv.id, serverCount);
+                });
+
+                // Reorder rows by server order
+                if (!isFirstPoll) {
+                    var tbody = document.querySelector('.conversations-table tbody');
+                    if (tbody) {
+                        var serverOrder = data.conversations.map(function (c) { return c.id; });
+                        serverOrder.forEach(function (convId, index) {
+                            var row = tbody.querySelector('tr[data-conv-id="' + convId + '"]');
+                            if (row && tbody.children[index] !== row) {
+                                tbody.insertBefore(row, tbody.children[index]);
+                            }
+                        });
+                    }
+                    var mobileContainer = document.getElementById('convMobileCards');
+                    if (mobileContainer) {
+                        var mobileOrder = data.conversations.map(function (c) { return c.id; });
+                        mobileOrder.forEach(function (convId, index) {
+                            var card = mobileContainer.querySelector('.conv-card[data-conv-id="' + convId + '"]');
+                            if (card && mobileContainer.children[index] !== card) {
+                                mobileContainer.insertBefore(card, mobileContainer.children[index]);
+                            }
+                        });
+                    }
+                }
+
+                setLastSeen(lastSeen);
+
+                // Use server-provided total_unread for sidebar badge
+                var totalUnread = data.total_unread || 0;
+                document.dispatchEvent(new CustomEvent('unread-count-changed', { detail: { count: totalUnread } }));
+
+                isFirstPoll = false;
+            })
+            .catch(function () { });
+    }
+
+    pollConversationUpdates();
+    setInterval(pollConversationUpdates, POLL_INTERVAL);
+</script>
+{% endblock %}

@@ -1,0 +1,28 @@
+# Entorno virtual
+venv/
+env/
+
+# Variables de entorno
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Django
+db.sqlite3
+staticfiles/
+media/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Security / Keys
+*.pem
+private_key.pem
+public_key.pem
+
+deploy1604.zip

@@ -1,0 +1,15 @@
+venv/
+env/
+.env
+__pycache__/
+*.py[cod]
+*.pyo
+db.sqlite3
+media/
+.vscode/
+.idea/
+*.swp
+.git/
+.gitignore
+*.md
+temp_curl_output.txt

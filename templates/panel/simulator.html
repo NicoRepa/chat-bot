@@ -1,0 +1,393 @@
+{% extends "base.html" %}
+
+{% block title %}Simulador de Chat{% endblock %}
+
+{% block extra_css %}
+<style>
+    .simulator-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        height: calc(100vh - 140px);
+    }
+    .phone-mockup {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-xl);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        max-width: 420px;
+        margin: 0 auto;
+        width: 100%;
+    }
+    .phone-header {
+        background: linear-gradient(135deg, #075E54, #128C7E);
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    .phone-header .avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(255,255,255,0.2);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+    }
+    .phone-header .name {
+        font-weight: 600;
+        font-size: 16px;
+    }
+    .phone-header .status {
+        font-size: 12px;
+        opacity: 0.8;
+    }
+    .phone-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background: #0B141A;
+    }
+    .phone-msg {
+        max-width: 85%;
+        padding: 8px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.4;
+        white-space: pre-wrap;
+    }
+    .phone-msg.sent {
+        align-self: flex-end;
+        background: #005C4B;
+        border-bottom-right-radius: 0;
+    }
+    .phone-msg.received {
+        align-self: flex-start;
+        background: #202C33;
+        border-bottom-left-radius: 0;
+    }
+    .phone-msg .time {
+        font-size: 11px;
+        opacity: 0.6;
+        text-align: right;
+        margin-top: 4px;
+    }
+    .phone-input-area {
+        padding: 8px 12px;
+        background: #1F2C34;
+        display: flex;
+        gap: 8px;
+    }
+    .phone-input {
+        flex: 1;
+        background: #2A3942;
+        border: none;
+        color: white;
+        padding: 10px 14px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-family: inherit;
+    }
+    .phone-input:focus {
+        outline: none;
+    }
+    .phone-send-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: #00A884;
+        border: none;
+        color: white;
+        font-size: 18px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .phone-send-btn:hover {
+        background: #008f6f;
+    }
+    .phone-send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Config panel */
+    .config-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+    .config-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-lg);
+        padding: 20px;
+    }
+    .config-card h3 {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 12px;
+    }
+    .config-field {
+        margin-bottom: 12px;
+    }
+    .config-field label {
+        display: block;
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+    }
+    .config-field input, .config-field select {
+        width: 100%;
+        background: var(--bg-input);
+        border: 1px solid var(--border);
+        color: var(--text-primary);
+        padding: 8px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 13px;
+    }
+    .config-field input:focus, .config-field select:focus {
+        outline: none;
+        border-color: var(--primary);
+    }
+    .log-area {
+        background: #0a0a0a;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 12px;
+        font-family: 'Consolas', monospace;
+        font-size: 12px;
+        color: #10B981;
+        max-height: 250px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+    }
+    .loading-dots::after {
+        content: '';
+        animation: dots 1.5s steps(4, end) infinite;
+    }
+    @keyframes dots {
+        0% { content: ''; }
+        25% { content: '.'; }
+        50% { content: '..'; }
+        75% { content: '...'; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 16px;">
+    <h1>🧪 Simulador de Chat</h1>
+    <p>Probá el chatbot sin necesidad de WhatsApp. Simula mensajes como si fueran de un usuario.</p>
+</div>
+
+<div class="simulator-container">
+    <!-- Simulador tipo WhatsApp -->
+    <div class="phone-mockup">
+        <div class="phone-header">
+            <div class="avatar">🤖</div>
+            <div>
+                <div class="name" id="businessName">{{ business.name }}</div>
+                <div class="status">en línea</div>
+            </div>
+        </div>
+        <div class="phone-messages" id="phoneMessages">
+            <div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.4); font-size: 13px;">
+                Escribí un mensaje para empezar la conversación
+            </div>
+        </div>
+        <div class="phone-input-area">
+            <input type="text" class="phone-input" id="messageInput" 
+                   placeholder="Escribir mensaje..." 
+                   onkeypress="if(event.key==='Enter')sendMessage()">
+            <button class="phone-send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+        </div>
+    </div>
+
+    <!-- Panel de configuración y logs -->
+    <div class="config-panel">
+        <div class="config-card">
+            <h3>⚙️ Configuración del simulador</h3>
+            <div class="config-field">
+                <label>Negocio (slug)</label>
+                <input type="text" id="businessSlug" value="{{ business.slug }}">
+            </div>
+            <div class="config-field">
+                <label>Plataforma</label>
+                <select id="platform">
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="web" selected>Web (Simulador)</option>
+                    <option value="telegram">Telegram</option>
+                </select>
+            </div>
+            <div class="config-field">
+                <label>ID del contacto (simula un número)</label>
+                <input type="text" id="externalId" value="+5491100000000">
+            </div>
+            <div class="config-field">
+                <label>Nombre del contacto</label>
+                <input type="text" id="senderName" value="Usuario de Prueba">
+            </div>
+            <div class="config-field">
+                <label>API Key</label>
+                <input type="text" id="apiKey" value="{{ api_key }}" placeholder="Se auto-genera">
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-danger btn-sm" onclick="clearChat()">🗑️ Limpiar Chat</button>
+                <button class="btn btn-outline btn-sm" onclick="newConversation()">🔄 Nueva Conversación</button>
+            </div>
+        </div>
+
+        <div class="config-card">
+            <h3>📊 Info de la conversación</h3>
+            <div id="convInfo" style="font-size: 13px; color: var(--text-secondary);">
+                <p>Enviá un mensaje para iniciar.</p>
+            </div>
+        </div>
+
+        <div class="config-card">
+            <h3>📋 Logs del API</h3>
+            <div class="log-area" id="logArea">Esperando mensajes...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const messagesDiv = document.getElementById('phoneMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const logArea = document.getElementById('logArea');
+    const convInfo = document.getElementById('convInfo');
+    let conversationStarted = false;
+
+    function addMessage(text, type) {
+        if (!conversationStarted) {
+            messagesDiv.innerHTML = '';
+            conversationStarted = true;
+        }
+        const now = new Date();
+        const time = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+        
+        const msg = document.createElement('div');
+        msg.className = `phone-msg ${type}`;
+        msg.innerHTML = `${escapeHtml(text)}<div class="time">${time}</div>`;
+        messagesDiv.appendChild(msg);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function addTypingIndicator() {
+        const typing = document.createElement('div');
+        typing.className = 'phone-msg received';
+        typing.id = 'typing';
+        typing.innerHTML = '<span class="loading-dots">Escribiendo</span>';
+        messagesDiv.appendChild(typing);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    function removeTypingIndicator() {
+        const typing = document.getElementById('typing');
+        if (typing) typing.remove();
+    }
+
+    function log(text) {
+        const now = new Date().toLocaleTimeString();
+        logArea.textContent += `\n[${now}] ${text}`;
+        logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    async function sendMessage() {
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        messageInput.value = '';
+        addMessage(text, 'sent');
+        sendBtn.disabled = true;
+
+        const payload = {
+            business_slug: document.getElementById('businessSlug').value,
+            platform: document.getElementById('platform').value,
+            external_id: document.getElementById('externalId').value,
+            sender_name: document.getElementById('senderName').value,
+            message: text,
+        };
+
+        log(`→ POST /api/webhooks/incoming/`);
+        log(`  Body: ${JSON.stringify(payload)}`);
+
+        addTypingIndicator();
+
+        try {
+            const response = await fetch('/api/webhooks/incoming/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': document.getElementById('apiKey').value,
+                },
+                body: JSON.stringify(payload),
+            });
+
+            const data = await response.json();
+            removeTypingIndicator();
+
+            log(`← ${response.status} ${JSON.stringify(data)}`);
+
+            if (data.response) {
+                addMessage(data.response, 'received');
+            } else if (data.status === 'waiting_for_agent') {
+                addMessage('⏳ Esperando respuesta del recepcionista...', 'received');
+            }
+
+            // Actualizar info
+            convInfo.innerHTML = `
+                <p><strong>ID:</strong> ${data.conversation_id || '—'}</p>
+                <p><strong>Clasificación:</strong> ${data.classification || 'Sin clasificar'}</p>
+                <p><strong>Estado menú:</strong> ${data.menu_state || '—'}</p>
+                <p><a href="/panel/conversaciones/${data.conversation_id}/" target="_blank" class="btn btn-outline btn-sm" style="margin-top: 8px;">🔗 Ver en panel</a></p>
+            `;
+
+        } catch (error) {
+            removeTypingIndicator();
+            log(`❌ Error: ${error.message}`);
+            addMessage('❌ Error de conexión', 'received');
+        }
+
+        sendBtn.disabled = false;
+        messageInput.focus();
+    }
+
+    function clearChat() {
+        messagesDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.4); font-size: 13px;">Escribí un mensaje para empezar la conversación</div>';
+        conversationStarted = false;
+        logArea.textContent = 'Chat limpiado. Logs reiniciados.';
+        convInfo.innerHTML = '<p>Enviá un mensaje para iniciar.</p>';
+    }
+
+    function newConversation() {
+        // Cambiar external_id para simular un nuevo contacto
+        const rand = Math.floor(Math.random() * 9000000) + 1000000;
+        document.getElementById('externalId').value = `+549110${rand}`;
+        clearChat();
+        log('🔄 Nuevo contacto simulado: +549110' + rand);
+    }
+
+    messageInput.focus();
+</script>
+{% endblock %}

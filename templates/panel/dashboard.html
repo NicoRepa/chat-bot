@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-icon svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .stat-icon.blue {
+        background: var(--primary-bg);
+        color: var(--primary);
+    }
+
+    .stat-icon.green {
+        background: var(--success-bg);
+        color: var(--success);
+    }
+
+    .stat-icon.red {
+        background: var(--error-bg);
+        color: var(--error);
+    }
+
+    .stat-icon.gray {
+        background: rgba(100, 116, 139, 0.08);
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7" />
+            <rect x="14" y="3" width="7" height="7" />
+            <rect x="14" y="14" width="7" height="7" />
+            <rect x="3" y="14" width="7" height="7" />
+        </svg>
+        Dashboard
+    </h1>
+    {% if business %}<p>{{ business.name }} · {{ business.industry }}</p>{% endif %}
+</div>
+
+{% if no_business %}
+<div class="card" style="text-align: center; padding: 48px;">
+    <h2 style="margin-bottom: 12px; font-size: 18px;">No hay negocios configurados</h2>
+    <p style="color: var(--text-secondary); margin-bottom: 20px;">Para empezar, creá un negocio desde el admin.</p>
+    <a href="/admin/core/business/add/" class="btn btn-primary">+ Crear Negocio</a>
+</div>
+{% else %}
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon blue">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+        </div>
+        <div class="stat-info">
+            <h3>{{ total_conversations }}</h3>
+            <p>Total</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon green">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+                <line x1="9" y1="9" x2="9.01" y2="9" />
+                <line x1="15" y1="9" x2="15.01" y2="9" />
+            </svg>
+        </div>
+        <div class="stat-info">
+            <h3>{{ active_conversations }}</h3>
+            <p>Activas</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon red">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+        </div>
+        <div class="stat-info">
+            <h3>{{ waiting_human }}</h3>
+            <p>Esperando humano</p>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon gray">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+            </svg>
+        </div>
+        <div class="stat-info">
+            <h3>{{ finalized }}</h3>
+            <p>Finalizadas</p>
+        </div>
+    </div>
+</div>
+
+{% if classification_stats %}
+<div class="card" style="margin-bottom: 20px;">
+    <h2 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+            <line x1="7" y1="7" x2="7.01" y2="7" />
+        </svg>
+        Clasificaciones
+    </h2>
+    <div class="classification-grid">
+        {% for stat in classification_stats %}
+        <a href="{% url 'panel:conversation_list' %}?classification={{ stat.key }}" class="classification-tag"
+            style="background: {{ stat.color }}15; color: {{ stat.color }}; border-color: {{ stat.color }}30;">
+            {{ stat.icon|safe }} {{ stat.label }} <span class="count">{{ stat.count }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 8px;">
+        <h2 style="font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+            </svg>
+            Conversaciones recientes
+        </h2>
+        <a href="{% url 'panel:conversation_list' %}" class="btn btn-outline btn-sm">Ver todas →</a>
+    </div>
+
+    {% if recent_conversations %}
+    <table class="conversations-table">
+        <thead>
+            <tr>
+                <th>Contacto</th>
+                <th>Clasificación</th>
+                <th>Asignado A</th>
+                <th>Estado</th>
+                <th>IA</th>
+                <th>Actividad</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for conv in recent_conversations %}
+            <tr data-conv-id="{{ conv.id }}" data-status="{{ conv.status }}" onclick="window.location='{% url 'panel:conversation_detail' conv.id %}'">
+                <td>
+                    <div class="contact-info">
+                        <div class="contact-avatar">{{ conv.contact.name|first|default:"?" }}</div>
+                        <div>
+                            <div class="contact-name">
+                                <a href="{% url 'panel:contact_detail' conv.contact.id %}"
+                                    style="text-decoration: none; color: inherit; font-weight: 500;"
+                                    onclick="event.stopPropagation();">{{ conv.contact.name|default:"Sin nombre" }}</a>
+                            </div>
+                            <div class="contact-id">{{ conv.contact.external_id|truncatechars:18 }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    {% with info=conv.get_classification_display_info %}
+                    <span class="classification-tag"
+                        style="font-size:11px; background: {{ info.color }}15; color: {{ info.color }}; border-color: {{ info.color }}30;">{{ info.icon|safe }} {{ info.label }}</span>
+                    {% endwith %}
+                </td>
+                <td>
+                    {% if conv.assigned_to %}
+                    <span style="font-size: 12px; color: var(--text-secondary);">👤 {{ conv.assigned_to.first_name|default:conv.assigned_to.username }}</span>
+                    {% else %}
+                    <span style="font-size: 12px; color: var(--text-muted); font-style: italic;">Sin asignar</span>
+                    {% endif %}
+                </td>
+                <td><span class="status-badge {{ conv.status }}">{{ conv.get_status_display }}</span></td>
+                <td>
+                    {% if conv.is_ai_active %}<span class="ai-badge active">🤖</span>
+                    {% else %}<span class="ai-badge inactive">👤</span>{% endif %}
+                </td>
+                <td style="color: var(--text-muted); font-size: 12px;">{{ conv.updated_at|timesince }} atrás</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align: center; color: var(--text-muted); padding: 32px;">No hay conversaciones todavía.</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    var DASH_POLL_INTERVAL = 8000;
+
+    function dashUpdateStats(stats) {
+        var els = {
+            total: document.querySelector('.stats-grid .stat-card:nth-child(1) h3'),
+            active: document.querySelector('.stats-grid .stat-card:nth-child(2) h3'),
+            waiting: document.querySelector('.stats-grid .stat-card:nth-child(3) h3'),
+            finalized: document.querySelector('.stats-grid .stat-card:nth-child(4) h3')
+        };
+        if (els.total) els.total.textContent = stats.total;
+        if (els.active) els.active.textContent = stats.active;
+        if (els.waiting) els.waiting.textContent = stats.waiting_human;
+        if (els.finalized) els.finalized.textContent = stats.finalized;
+    }
+
+    function dashBuildSvgAI() {
+        return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8.01" y2="16"/><line x1="16" y1="16" x2="16.01" y2="16"/></svg>';
+    }
+    function dashBuildSvgHuman() {
+        return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
+    }
+
+    var dashKnownIds = {};
+
+    function dashUpdateTable(conversations) {
+        var tbody = document.querySelector('.conversations-table tbody');
+        if (!tbody) return;
+
+        conversations.slice(0, 10).forEach(function(conv) {
+            var existing = tbody.querySelector('tr[data-conv-id="' + conv.id + '"]');
+            if (!existing) {
+                // Nueva conversación: insertar al inicio
+                var info = conv.classification_info;
+                var safeName = (conv.contact_name || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                var assignedHtml = conv.assigned_to_display
+                    ? '<span style="font-size:12px;color:var(--text-secondary);">👤 ' + conv.assigned_to_display.replace(/</g,'&lt;') + '</span>'
+                    : '<span style="font-size:12px;color:var(--text-muted);font-style:italic;">Sin asignar</span>';
+                var tr = document.createElement('tr');
+                tr.setAttribute('data-conv-id', conv.id);
+                tr.setAttribute('data-status', conv.status);
+                tr.style.animation = 'dash-row-in 0.4s ease';
+                tr.setAttribute('onclick', "window.location='/panel/conversaciones/" + conv.id + "/'");
+                tr.innerHTML =
+                    '<td><div class="contact-info">' +
+                        '<div class="contact-avatar">' + conv.contact_initial + '</div>' +
+                        '<div>' +
+                            '<div class="contact-name"><a href="/panel/contactos/' + conv.contact_id + '/" style="text-decoration:none;color:inherit;font-weight:500;" onclick="event.stopPropagation();">' + safeName + '</a></div>' +
+                            '<div class="contact-id">' + conv.contact_external_id + '</div>' +
+                        '</div>' +
+                    '</div></td>' +
+                    '<td><span class="classification-tag" style="font-size:11px;background:' + info.color + '15;color:' + info.color + ';border-color:' + info.color + '30;">' + info.icon + ' ' + info.label + '</span></td>' +
+                    '<td>' + assignedHtml + '</td>' +
+                    '<td><span class="status-badge ' + conv.status + '">' + conv.status_display + '</span></td>' +
+                    '<td><span class="ai-badge ' + (conv.is_ai_active ? 'active' : 'inactive') + '">' + (conv.is_ai_active ? dashBuildSvgAI() : dashBuildSvgHuman()) + '</span></td>' +
+                    '<td style="color:var(--text-muted);font-size:12px;">ahora mismo</td>';
+                tbody.insertBefore(tr, tbody.firstChild);
+
+                // Remover fila vacía si existía
+                var emptyRow = tbody.querySelector('p');
+                if (emptyRow) emptyRow.closest('tr, p').remove();
+            } else {
+                // Actualizar status si cambió
+                if (existing.dataset.status !== conv.status) {
+                    var statusSpan = existing.querySelector('.status-badge');
+                    if (statusSpan) {
+                        statusSpan.className = 'status-badge ' + conv.status;
+                        statusSpan.textContent = conv.status_display;
+                    }
+                    existing.dataset.status = conv.status;
+                }
+            }
+        });
+    }
+
+    var dashFirstPoll = true;
+
+    function pollDashboard() {
+        fetch('/panel/conversaciones/actualizaciones/')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                dashUpdateStats(data.stats);
+                if (!dashFirstPoll) {
+                    dashUpdateTable(data.conversations);
+                } else {
+                    // Registrar IDs existentes en el primer poll
+                    data.conversations.forEach(function(c) { dashKnownIds[c.id] = true; });
+                    dashFirstPoll = false;
+                }
+            })
+            .catch(function() {});
+    }
+
+    pollDashboard();
+    setInterval(pollDashboard, DASH_POLL_INTERVAL);
+</script>
+<style>
+    @keyframes dash-row-in {
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,26 @@
+{
+  "name": "Chatbot Platform AI",
+  "short_name": "Chatbot AI",
+  "description": "Plataforma de gestión de conversaciones AI",
+  "start_url": "/panel/",
+  "scope": "/",
+  "id": "/panel/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6366F1",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/images/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/images/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

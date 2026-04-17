@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}Agentes{% endblock %}
+{% block nav_agents %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .spec-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .spec-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+        font-weight: 500;
+        background: var(--primary-bg);
+        color: var(--primary);
+        border: 1px solid rgba(99, 102, 241, 0.15);
+    }
+
+    .active-count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .active-count-badge.has-chats {
+        background: rgba(245, 158, 11, 0.12);
+        color: #f59e0b;
+    }
+
+    .active-count-badge.no-chats {
+        background: var(--bg-hover);
+        color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header"
+    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px;">
+    <div>
+        <h1>Gestión de Agentes</h1>
+        <p class="text-secondary">Administra los usuarios y niveles de acceso.</p>
+    </div>
+    {% if is_admin %}
+    <a href="{% url 'panel:agent_create' %}" class="btn btn-primary"
+        style="display: inline-flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <line x1="19" y1="8" x2="19" y2="14" />
+            <line x1="22" y1="11" x2="16" y2="11" />
+        </svg>
+        Nuevo Agente
+    </a>
+    {% endif %}
+</div>
+
+<div class="card" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+    <table class="conversations-table">
+        <thead>
+            <tr>
+                <th>Usuario</th>
+                <th>Nombre</th>
+                <th>Rol</th>
+                <th>Especializaciones</th>
+                <th>Chats Activos</th>
+                {% if is_admin %}
+                <th style="text-align: right;">Acciones</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for agent in agents %}
+            <tr>
+                <td><strong>@{{ agent.user.username }}</strong></td>
+                <td>{{ agent.user.first_name }} {{ agent.user.last_name }}</td>
+                <td>
+                    {% if agent.role == 'admin' %}
+                    <span class="classification-tag"
+                        style="background: rgba(139, 92, 246, 0.15); color: #8b5cf6; border-color: rgba(139, 92, 246, 0.3);">Administrador</span>
+                    {% elif agent.role == 'supervisor' %}
+                    <span class="classification-tag"
+                        style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border-color: rgba(245, 158, 11, 0.3);">Supervisor</span>
+                    {% else %}
+                    <span class="classification-tag"
+                        style="background: rgba(16, 185, 129, 0.15); color: #10b981; border-color: rgba(16, 185, 129, 0.3);">Agente</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if agent.specializations %}
+                    <div class="spec-tags">
+                        {% for spec_key in agent.specializations %}
+                        <span class="spec-tag">{{ spec_key }}</span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <span style="font-size: 12px; color: var(--text-muted); font-style: italic;">Todas</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span
+                        class="active-count-badge {% if agent.active_count > 0 %}has-chats{% else %}no-chats{% endif %}">
+                        {{ agent.active_count }}
+                    </span>
+                </td>
+                {% if is_admin %}
+                <td style="text-align: right;">
+                    <a href="{% url 'panel:agent_update' agent.user.id %}" class="btn btn-outline btn-sm">Editar</a>
+                </td>
+                {% endif %}
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                    No hay agentes registrados.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

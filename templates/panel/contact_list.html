@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Contactos CRM{% endblock %}
+{% block nav_contacts %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="margin-right: 8px; vertical-align: bottom;">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+        Directorio de Contactos
+    </h1>
+    <p>{{ business.name }} · Gestioná la base de datos de tus clientes</p>
+</div>
+
+<form method="get" class="filters-bar">
+    <input type="text" name="search" value="{{ current_search }}"
+        placeholder="🔍 Buscar por nombre, teléfono, e-mail o ID..." class="filter-input">
+    <button type="submit" class="btn btn-primary btn-sm">Buscar</button>
+    {% if current_search %}
+    <a href="{% url 'panel:contact_list' %}" class="btn btn-ghost btn-sm">✕ Limpiar</a>
+    {% endif %}
+</form>
+
+<div class="card">
+    {% if contacts %}
+    <table class="conversations-table">
+        <thead>
+            <tr>
+                <th>Contacto</th>
+                <th>Plataforma</th>
+                <th>Teléfono / Email</th>
+                <th>F. Registro</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in contacts %}
+            <tr onclick="window.location='{% url 'panel:contact_detail' c.id %}'">
+                <td>
+                    <div class="contact-info">
+                        <div class="contact-avatar">{{ c.name|first|default:"?" }}</div>
+                        <div>
+                            <div class="contact-name">{{ c.name|default:"Sin nombre" }}</div>
+                            <div class="contact-id">{{ c.external_id }}</div>
+                        </div>
+                    </div>
+                </td>
+                <td><span class="status-badge" style="background: var(--bg-hover); color: var(--text-color);">{{ c.get_platform_display }}</span></td>
+                <td style="color: var(--text-secondary); font-size: 13px;">
+                    {% if c.phone %}{{ c.phone }}{% endif %}
+                    {% if c.phone and c.email %}<br>{% endif %}
+                    {% if c.email %}{{ c.email }}{% endif %}
+                </td>
+                <td style="color: var(--text-muted); font-size: 12px; white-space: nowrap;">{{ c.created_at|date:"d/m/Y"}}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="text-align: center; color: var(--text-muted); padding: 48px;">No se encontraron contactos en tu CRM.</p>
+    {% endif %}
+</div>
+{% endblock %}

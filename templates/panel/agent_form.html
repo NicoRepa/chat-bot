@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}{% if target_user %}Editar Agente{% else %}Nuevo Agente{% endif %}{% endblock %}
+{% block nav_agents %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .agent-form-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding-bottom: 40px;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .full-width {
+        grid-column: 1 / -1;
+    }
+
+    .section-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .role-info-card {
+        background: var(--bg-hover);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px;
+        margin-top: 12px;
+    }
+
+    .role-info-card ul {
+        margin: 0;
+        padding-left: 20px;
+        color: var(--text-secondary);
+        font-size: 13px;
+        line-height: 1.6;
+    }
+
+    .role-info-card li {
+        margin-bottom: 6px;
+    }
+
+    .role-info-card strong {
+        color: var(--text-primary);
+    }
+
+    .specialization-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+    }
+
+    .spec-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 14px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg-input);
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--text-primary);
+        transition: all 0.2s ease;
+    }
+
+    .spec-checkbox:hover {
+        border-color: var(--primary);
+        background: var(--primary-bg);
+    }
+
+    .spec-checkbox input {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--primary);
+    }
+
+    .spec-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 20px;
+        height: 20px;
+        color: var(--text-secondary);
+    }
+
+    @media (max-width: 640px) {
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="agent-form-container">
+    <div class="page-header" style="margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+            <a href="{% url 'panel:agent_list' %}" class="btn btn-outline btn-sm"
+                style="display: flex; align-items: center; gap: 6px;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+                Volver
+            </a>
+            <h1 style="margin: 0; font-size: 20px;">{% if target_user %}Editar Agente @{{ target_user.username }}{% else %}Nuevo Agente{% endif %}</h1>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 32px;">
+        {% if error %}
+        <div
+            style="background-color: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 12px 16px; border-radius: 8px; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; font-weight: 500;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="post" class="settings-form">
+            {% csrf_token %}
+
+            <div class="form-grid">
+                <!-- Información Personal -->
+                <div class="full-width">
+                    <h2 class="section-title">Información Personal</h2>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Nombre</label>
+                    <input type="text" name="first_name" class="form-input"
+                        value="{{ target_user.first_name|default:'' }}" placeholder="Ej: Juan">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Apellido</label>
+                    <input type="text" name="last_name" class="form-input"
+                        value="{{ target_user.last_name|default:'' }}" placeholder="Ej: Pérez">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-input" value="{{ target_user.email|default:'' }}"
+                        placeholder="juan.perez@ejemplo.com">
+                </div>
+
+                <!-- Credenciales -->
+                <div class="full-width" style="margin-top: 16px;">
+                    <h2 class="section-title">Credenciales de Acceso</h2>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Nombre de Usuario{% if not target_user %} *{% endif %}</label>
+                    <input type="text" name="username" class="form-input" value="{{ target_user.username|default:'' }}"
+                        {% if target_user %}disabled{% else %}required{% endif %} placeholder="Ej: juanperez">
+                    {% if target_user %}
+                    <div class="form-hint">El nombre de usuario no se puede cambiar.</div>
+                    {% endif %}
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Contraseña {% if target_user %}(Dejar en blanco para no cambiar){% else %}*{% endif %}</label>
+                    <input type="password" name="password" class="form-input" {% if not target_user %}required{% endif %} placeholder="••••••••">
+                </div>
+
+                <!-- Permisos y Roles -->
+                <div class="full-width" style="margin-top: 16px;">
+                    <h2 class="section-title">Permisos y Especializaciones</h2>
+                </div>
+
+                <div class="form-group full-width">
+                    <label class="form-label">Rol del Usuario</label>
+                    <select name="role" class="form-select" {% if target_user and not is_admin %}disabled{% endif %}
+                        style="max-width: 300px;">
+                        {% for key, label in roles %}
+                        <option value="{{ key }}" {% if target_profile and target_profile.role == key %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+
+                    {% if target_user and not is_admin %}
+                    <div class="form-hint" style="color: var(--warning);">Solo un Administrador puede cambiar los roles.
+                    </div>
+                    {% endif %}
+
+                    <div class="role-info-card">
+                        <ul>
+                            <li><strong>Administrador:</strong> Acceso total a configuraciones, panel de agentes y todas
+                                las conversaciones.</li>
+                            <li><strong>Supervisor:</strong> Acceso a todas las conversaciones (incluso las asignadas a
+                                otros agentes), pero no a configuración.</li>
+                            <li><strong>Agente:</strong> Solo puede ver y responder las conversaciones que le fueron
+                                asignadas o que están libres (sin asignar).</li>
+                        </ul>
+                    </div>
+                </div>
+
+                {% if classifications %}
+                <div class="form-group full-width" style="margin-top: 8px;">
+                    <label class="form-label">Especializaciones (Auto-asignación)</label>
+                    <div class="form-hint">Seleccioná las categorías que atiende este agente. Las conversaciones con
+                        estas clasificaciones se le asignarán automáticamente. Si no marcás ninguna, recibirá de todo
+                        tipo.</div>
+
+                    <div class="specialization-grid">
+                        {% for cat in classifications %}
+                        <label class="spec-checkbox">
+                            <input type="checkbox" name="specializations" value="{{ cat.key }}" {% if target_profile and cat.key in target_profile.specializations %}checked{% endif %}>
+                            {% if cat.icon %}<span class="spec-icon">{{ cat.icon|safe }}</span>{% endif %}
+                            <span>{{ cat.label }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Acciones -->
+                <div class="full-width"
+                    style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 12px;">
+                    <a href="{% url 'panel:agent_list' %}" class="btn btn-outline"
+                        style="padding: 10px 20px;">Cancelar</a>
+                    <button type="submit" class="btn btn-primary"
+                        style="padding: 10px 24px; display: flex; align-items: center; gap: 8px;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
