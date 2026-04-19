@@ -36,6 +36,7 @@ CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf.split(',') if o.strip()] if _cs
 
 # Application definition
 DJANGO_APPS = [
+    'daphne',  # ASGI server — debe ir primero
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -45,6 +46,7 @@ DJANGO_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
+    'channels',
     'rest_framework',
     'corsheaders',
 ]
@@ -93,6 +95,30 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+ASGI_APPLICATION = 'config.asgi.application'
+
+# ── Django Channels (WebSockets) ──────────────────────
+_REDIS_URL = os.getenv('REDIS_URL', '')
+if _REDIS_URL:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels_redis.core.RedisChannelLayer',
+            'CONFIG': {
+                'hosts': [_REDIS_URL],
+                'capacity': 1500,
+                'expiry': 10,
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        'default': {
+            'BACKEND': 'channels.layers.InMemoryChannelLayer',
+        },
+    }
+
+# ── Encriptación de campos sensibles ──────────────────
+FIELD_ENCRYPTION_KEY = os.getenv('FIELD_ENCRYPTION_KEY', '')
 
 # ── Base de datos ──────────────────────────────────────
 # Si hay DB_HOST en env → PostgreSQL (producción/Docker)

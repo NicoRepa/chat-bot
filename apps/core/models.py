@@ -2,6 +2,7 @@ import uuid
 from django.db import models
 from django.conf import settings
 from django.utils.text import slugify
+from apps.core.fields import EncryptedCharField
 
 
 class Business(models.Model):
@@ -121,9 +122,9 @@ class BusinessConfig(models.Model):
         blank=True,
         help_text='Phone Number ID de Meta (se encuentra en el dashboard de WhatsApp Business)'
     )
-    whatsapp_token = models.CharField(
+    whatsapp_token = EncryptedCharField(
         'WhatsApp Access Token',
-        max_length=500,
+        max_length=2000,
         blank=True,
         help_text='Token de acceso permanente de la WhatsApp Cloud API'
     )
@@ -132,6 +133,12 @@ class BusinessConfig(models.Model):
         max_length=200,
         blank=True,
         help_text='Token de verificación elegido por vos para validar el webhook de Meta'
+    )
+    whatsapp_app_secret = EncryptedCharField(
+        'WhatsApp App Secret',
+        max_length=500,
+        blank=True,
+        help_text='App Secret de la app de Meta. Si está cargado, el webhook valida X-Hub-Signature-256 antes de procesar.'
     )
 
     # Auto-asignación y límites

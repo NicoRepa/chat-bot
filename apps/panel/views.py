@@ -7,8 +7,6 @@ import json
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views import View
-from django.views.decorators.csrf import csrf_exempt
-from django.utils.decorators import method_decorator
 from django.db.models import Count, Q
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
@@ -267,7 +265,6 @@ class ConversationDetailView(LoginRequiredMixin, View):
         return render(request, 'panel/conversation_detail.html', context)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PanelReplyView(LoginRequiredMixin, View):
     """El recepcionista responde desde el panel."""
     login_url = '/admin/login/'
@@ -295,7 +292,6 @@ class PanelReplyView(LoginRequiredMixin, View):
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PanelToggleAIView(LoginRequiredMixin, View):
     """Activa/desactiva la IA en una conversación."""
     login_url = '/admin/login/'
@@ -323,7 +319,6 @@ class PanelToggleAIView(LoginRequiredMixin, View):
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PanelAssignAgentView(LoginRequiredMixin, View):
     """Asigna una conversación a un agente específico."""
     login_url = '/admin/login/'
@@ -343,7 +338,6 @@ class PanelAssignAgentView(LoginRequiredMixin, View):
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PanelUpdateStatusView(LoginRequiredMixin, View):
     """Cambiar el estado de una conversación."""
     login_url = '/admin/login/'
@@ -365,7 +359,6 @@ class PanelUpdateStatusView(LoginRequiredMixin, View):
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PanelUpdateClassificationView(LoginRequiredMixin, View):
     """El recepcionista cambia la clasificación manualmente."""
     login_url = '/admin/login/'
@@ -379,7 +372,6 @@ class PanelUpdateClassificationView(LoginRequiredMixin, View):
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PanelToggleTagView(LoginRequiredMixin, View):
     """El recepcionista agrega o quita una etiqueta a la conversación."""
     login_url = '/admin/login/'
@@ -396,7 +388,6 @@ class PanelToggleTagView(LoginRequiredMixin, View):
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PanelResendMenuView(LoginRequiredMixin, View):
     """Reenviar el menú interactivo en la conversación."""
     login_url = '/admin/login/'
@@ -441,14 +432,13 @@ class PanelResendMenuView(LoginRequiredMixin, View):
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class PanelRefreshSummaryView(LoginRequiredMixin, View):
     """Regenerar resumen IA de una conversación."""
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
         conversation = get_object_or_404(Conversation, pk=conversation_id)
-        classification, confidence, summary = ai_service.classify_conversation(conversation)
+        classification, confidence, summary, _usage = ai_service.classify_conversation(conversation)
         if summary:
             conversation.summary = summary
         if classification:
@@ -643,6 +633,10 @@ class SettingsView(LoginRequiredMixin, View):
         config.whatsapp_phone_id = request.POST.get('whatsapp_phone_id', '')
         config.whatsapp_token = request.POST.get('whatsapp_token', '')
         config.whatsapp_verify_token = request.POST.get('whatsapp_verify_token', '')
+        # Solo sobreescribir app_secret si viene un valor no vacío (para no borrar por accidente)
+        whatsapp_app_secret = request.POST.get('whatsapp_app_secret', '').strip()
+        if whatsapp_app_secret:
+            config.whatsapp_app_secret = whatsapp_app_secret
         config.auto_assign_enabled = request.POST.get('auto_assign_enabled') == 'on'
         try:
             config.ai_max_messages = int(request.POST.get('ai_max_messages', 0))
@@ -679,6 +673,7 @@ class SettingsView(LoginRequiredMixin, View):
             'knowledge_base', 'greeting_message',
             'menu_enabled', 'webhook_secret',
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_verify_token',
+            'whatsapp_app_secret',
             'auto_assign_enabled', 'ai_max_messages', 'auto_close_hours',
             'agent_visibility_mode', 'supervisor_only_mode',
             'menu_force_selection', 'menu_reactivation_message',
@@ -768,7 +763,6 @@ class PanelNotificationsView(LoginRequiredMixin, View):
 
 # ── Menu CRUD Views ──────────────────────────────────────
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuCategoryCreateView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -785,7 +779,6 @@ class MenuCategoryCreateView(LoginRequiredMixin, View):
         return redirect('panel:menu_config')
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuCategoryUpdateView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -800,7 +793,6 @@ class MenuCategoryUpdateView(LoginRequiredMixin, View):
         return redirect('panel:menu_config')
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuCategoryDeleteView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -810,7 +802,6 @@ class MenuCategoryDeleteView(LoginRequiredMixin, View):
         return redirect('panel:menu_config')
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuSubcategoryCreateView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -828,7 +819,6 @@ class MenuSubcategoryCreateView(LoginRequiredMixin, View):
         return redirect('panel:menu_config')
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuSubcategoryUpdateView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -844,7 +834,6 @@ class MenuSubcategoryUpdateView(LoginRequiredMixin, View):
         return redirect('panel:menu_config')
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuSubcategoryDeleteView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -854,7 +843,6 @@ class MenuSubcategoryDeleteView(LoginRequiredMixin, View):
         return redirect('panel:menu_config')
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuSubSubcategoryCreateView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -872,7 +860,6 @@ class MenuSubSubcategoryCreateView(LoginRequiredMixin, View):
         return redirect('panel:menu_config')
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuSubSubcategoryUpdateView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -888,7 +875,6 @@ class MenuSubSubcategoryUpdateView(LoginRequiredMixin, View):
         return redirect('panel:menu_config')
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class MenuSubSubcategoryDeleteView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
@@ -1193,7 +1179,6 @@ class AgentUpdateView(LoginRequiredMixin, View):
 
         return redirect('panel:agent_list')
 
-@method_decorator(csrf_exempt, name='dispatch')
 class AIFeedbackView(LoginRequiredMixin, View):
     """Permite a admins valorar mensajes de IA con thumbs up/down."""
     login_url = '/admin/login/'

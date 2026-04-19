@@ -432,9 +432,16 @@
 
                 <div class="form-group">
                     <label class="form-label">WhatsApp Verify Token</label>
-                    <input type="text" name="whatsapp_verify_token" class="form-input" value="{{ config.whatsapp_verify_token }}"
+                    <input type="password" name="whatsapp_verify_token" class="form-input" value="{{ config.whatsapp_verify_token }}"
                         placeholder="Un token secreto elegido por vos">
                     <p class="form-hint">Este token lo elegís vos. Se usa para verificar el webhook en Meta Business → WhatsApp → Configuración → Webhook.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">WhatsApp App Secret</label>
+                    <input type="password" name="whatsapp_app_secret" class="form-input" value=""
+                        placeholder="••••••••••••••••">
+                    <p class="form-hint">Se encuentra en Meta App → Panel → Configuración → Básica. Necesario para validar la firma de los webhooks (HMAC).</p>
                 </div>
 
                 <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;">
@@ -453,7 +460,7 @@
 
                 <div class="form-group">
                     <label class="form-label">API Key (webhook genérico)</label>
-                    <input type="text" name="webhook_secret" class="form-input" value="{{ config.webhook_secret }}"
+                    <input type="password" name="webhook_secret" class="form-input" value="{{ config.webhook_secret }}"
                         placeholder="Clave secreta para autenticar requests">
                     <p class="form-hint">Se envía en el header X-API-Key para autenticar mensajes entrantes al webhook genérico (/api/webhooks/incoming/).</p>
                 </div>

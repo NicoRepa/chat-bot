@@ -20,6 +20,8 @@
 </head>
 
 <body class="{% block body_class %}{% endblock %}">
+    <!-- WebSocket realtime -->
+    <script src="{% static 'js/realtime.js' %}"></script>
     <div class="layout">
         <!-- Mobile hamburger -->
         <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()">
@@ -184,24 +186,16 @@
             }
         });
 
-        // Polling global de badge (solo en páginas que NO son conversaciones)
+        // WebSocket global de badge (reemplaza polling HTTP)
         (function() {
-            // Si estamos en la página de conversaciones, ya tiene su propio polling
-            if (window.location.pathname.indexOf('/conversaciones/') === -1 ||
-                window.location.pathname.match(/\/conversaciones\/.+\//)) {
-                // Estamos en otra sección o en el detail → polling ligero del badge
-                function pollUnreadBadge() {
-                    fetch('/panel/conversaciones/actualizaciones/')
-                        .then(function(res) { return res.json(); })
-                        .then(function(data) {
-                            var count = data.total_unread || 0;
-                            document.dispatchEvent(new CustomEvent('unread-count-changed', { detail: { count: count } }));
-                        })
-                        .catch(function() {});
-                }
-                setInterval(pollUnreadBadge, 10000);
-                // Primer poll al cargar
-                setTimeout(pollUnreadBadge, 2000);
+            if (typeof PanelRealtime !== 'undefined') {
+                var inboxSock = PanelRealtime.subscribeInbox();
+                inboxSock.on('inbox_update', function(data) {
+                    // Usar el total_unread enviado directamente en el payload
+                    if (data.total_unread !== undefined) {
+                        document.dispatchEvent(new CustomEvent('unread-count-changed', { detail: { count: data.total_unread } }));
+                    }
+                });
             }
         })();
 

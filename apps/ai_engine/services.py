@@ -14,6 +14,30 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 BASE_RETRY_DELAY = 5  # segundos
 
+# Costos estimados por token según modelo
+_COST_TABLE = {
+    'gpt-4o-mini': 0.000001,
+    'gpt-3.5': 0.000001,
+    'gpt-4o': 0.000005,
+    'gpt-4': 0.00003,
+}
+
+def _cost_per_token(model_name):
+    """Retorna el costo estimado por token según el modelo."""
+    model_lower = (model_name or '').lower()
+    for key, cost in _COST_TABLE.items():
+        if key in model_lower:
+            return cost
+    return 0.000002  # default
+
+def _usage_from_response(response, model_name):
+    """Extrae uso de tokens y costo de una response de OpenAI."""
+    if not response or not hasattr(response, 'usage') or not response.usage:
+        return {'tokens': 0, 'cost': 0.0}
+    tokens = response.usage.total_tokens
+    cost = tokens * _cost_per_token(model_name)
+    return {'tokens': tokens, 'cost': cost}
+
 
 class ChatGPTService:
     """
@@ -143,9 +167,17 @@ class ChatGPTService:
         """
         Genera una respuesta IA para un mensaje del usuario.
         Incluye historial de la conversación como contexto.
+
+        Retorna: (text, usage_dict)
+            - text: string con la respuesta
+            - usage_dict: {'tokens': int, 'cost': float}
         """
         if not self.client:
-            return 'Lo siento, el servicio de IA no está disponible en este momento. Un recepcionista te atenderá pronto.'
+            return (
+                'Lo siento, el servicio de IA no está disponible en este momento. '
+                'Un recepcionista te atenderá pronto.',
+                {'tokens': 0, 'cost': 0.0}
+            )
 
         try:
             business = conversation.business
@@ -180,38 +212,40 @@ class ChatGPTService:
                 max_tokens=config.max_tokens,
             )
 
+            usage = _usage_from_response(response, model_name)
+
             if response and response.choices:
-                if hasattr(response, 'usage') and response.usage:
-                    tokens = response.usage.total_tokens
-                    conversation.last_tokens_used = getattr(conversation, 'last_tokens_used', 0) + tokens
-                    
-                    cost_per_token = 0.000002
-                    model_lower = model_name.lower()
-                    if 'gpt-4o-mini' in model_lower or 'gpt-3.5' in model_lower:
-                        cost_per_token = 0.000001
-                    elif 'gpt-4' in model_lower:
-                        cost_per_token = 0.00003
-                        
-                    conversation.last_ai_cost = getattr(conversation, 'last_ai_cost', 0.0) + (tokens * cost_per_token)
-                    
-                return response.choices[0].message.content
-            return 'Disculpá, no pude procesar tu mensaje. Un recepcionista te atenderá.'
+                return response.choices[0].message.content, usage
+            return (
+                'Disculpá, no pude procesar tu mensaje. Un recepcionista te atenderá.',
+                usage
+            )
 
         except Exception as e:
             error_msg = str(e)
             if '429' in error_msg or 'rate_limit' in error_msg.lower():
                 logger.warning(f'Cuota de OpenAI agotada: {e}')
-                return '⏳ El servicio de IA está temporalmente saturado. Un recepcionista te va a atender en breve.'
+                return (
+                    '⏳ El servicio de IA está temporalmente saturado. '
+                    'Un recepcionista te va a atender en breve.',
+                    {'tokens': 0, 'cost': 0.0}
+                )
             logger.error(f'Error generando respuesta ChatGPT: {e}')
-            return 'Disculpá, hubo un error al procesar tu mensaje. Un recepcionista te va a atender pronto.'
+            return (
+                'Disculpá, hubo un error al procesar tu mensaje. '
+                'Un recepcionista te va a atender pronto.',
+                {'tokens': 0, 'cost': 0.0}
+            )
 
     def classify_conversation(self, conversation):
         """
         Clasifica el interés del lead basándose en la conversación.
-        Devuelve (classification_key, confidence, summary).
+
+        Retorna: (classification_key, confidence, summary, usage_dict)
+            - usage_dict: {'tokens': int, 'cost': float}
         """
         if not self.client:
-            return None, 0.0, ''
+            return None, 0.0, '', {'tokens': 0, 'cost': 0.0}
 
         try:
             business = conversation.business
@@ -285,20 +319,9 @@ Respondé SOLO con un JSON válido, sin texto adicional:
             )
 
             if not response or not response.choices:
-                return None, 0.0, ''
+                return None, 0.0, '', {'tokens': 0, 'cost': 0.0}
 
-            if hasattr(response, 'usage') and response.usage:
-                tokens = response.usage.total_tokens
-                conversation.last_tokens_used = getattr(conversation, 'last_tokens_used', 0) + tokens
-                
-                cost_per_token = 0.000002
-                model_lower = model_name.lower()
-                if 'gpt-4o-mini' in model_lower or 'gpt-3.5' in model_lower:
-                    cost_per_token = 0.000001
-                elif 'gpt-4' in model_lower:
-                    cost_per_token = 0.00003
-                    
-                conversation.last_ai_cost = getattr(conversation, 'last_ai_cost', 0.0) + (tokens * cost_per_token)
+            usage = _usage_from_response(response, model_name)
 
             result_text = response.choices[0].message.content.strip()
 
@@ -312,12 +335,13 @@ Respondé SOLO con un JSON válido, sin texto adicional:
             return (
                 result.get('classification', ''),
                 float(result.get('confidence', 0.0)),
-                result.get('summary', '')
+                result.get('summary', ''),
+                usage,
             )
 
         except Exception as e:
             logger.error(f'Error clasificando conversación: {e}')
-            return None, 0.0, ''
+            return None, 0.0, '', {'tokens': 0, 'cost': 0.0}
 
     def detect_human_request(self, message_text):
         """

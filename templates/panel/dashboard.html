@@ -280,26 +280,38 @@
         });
     }
 
-    var dashFirstPoll = true;
+    // ── WebSocket real-time updates (reemplaza polling HTTP) ──
+    var _dashRefreshTimer = null;
 
-    function pollDashboard() {
-        fetch('/panel/conversaciones/actualizaciones/')
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                dashUpdateStats(data.stats);
-                if (!dashFirstPoll) {
+    function debouncedRefresh() {
+        if (_dashRefreshTimer) clearTimeout(_dashRefreshTimer);
+        _dashRefreshTimer = setTimeout(function() {
+            fetch('/panel/conversaciones/actualizaciones/')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    dashUpdateStats(data.stats);
                     dashUpdateTable(data.conversations);
-                } else {
-                    // Registrar IDs existentes en el primer poll
-                    data.conversations.forEach(function(c) { dashKnownIds[c.id] = true; });
-                    dashFirstPoll = false;
-                }
-            })
-            .catch(function() {});
+                })
+                .catch(function() {});
+        }, 800);
     }
 
-    pollDashboard();
-    setInterval(pollDashboard, DASH_POLL_INTERVAL);
+    // Primer fetch al cargar
+    fetch('/panel/conversaciones/actualizaciones/')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            dashUpdateStats(data.stats);
+            data.conversations.forEach(function(c) { dashKnownIds[c.id] = true; });
+        })
+        .catch(function() {});
+
+    // Suscribirse al inbox para recibir updates en tiempo real
+    if (typeof PanelRealtime !== 'undefined') {
+        var dashInbox = PanelRealtime.subscribeInbox();
+        dashInbox.on('inbox_update', function(data) {
+            debouncedRefresh();
+        });
+    }
 </script>
 <style>
     @keyframes dash-row-in {

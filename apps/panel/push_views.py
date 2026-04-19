@@ -4,12 +4,10 @@ from django.http import JsonResponse
 from django.views import View
 from django.contrib.auth.mixins import LoginRequiredMixin
 from apps.core.models import PushSubscription
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 
 logger = logging.getLogger(__name__)
 
-@method_decorator(csrf_exempt, name='dispatch')
+
 class PushSubscribeView(LoginRequiredMixin, View):
     """
     Recibe la información de la suscripción (endpoint, p256dh, auth) 

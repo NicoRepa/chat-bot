@@ -799,43 +799,42 @@
         return Math.floor(diff / 86400) + 'd';
     }
 
-    var isFirstPoll = true;
+    // ── WebSocket real-time (reemplaza polling HTTP) ──
+    var _listRefreshTimer = null;
 
-    function pollConversationUpdates() {
-        fetch('/panel/conversaciones/actualizaciones/')
-            .then(function (res) { return res.json(); })
-            .then(function (data) {
-                var lastSeen = getLastSeen();
+    function debouncedListRefresh() {
+        if (_listRefreshTimer) clearTimeout(_listRefreshTimer);
+        _listRefreshTimer = setTimeout(function() {
+            fetch('/panel/conversaciones/actualizaciones/')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    var lastSeen = getLastSeen();
 
-                data.conversations.forEach(function (conv) {
-                    var rowExists = !!document.querySelector('tr[data-conv-id="' + conv.id + '"]') ||
-                        !!document.querySelector('.conv-card[data-conv-id="' + conv.id + '"]');
-                    var seenId = lastSeen[conv.id];
-                    var hasNew = conv.last_msg_id && conv.last_msg_id !== seenId;
+                    data.conversations.forEach(function(conv) {
+                        var rowExists = !!document.querySelector('tr[data-conv-id="' + conv.id + '"]') ||
+                            !!document.querySelector('.conv-card[data-conv-id="' + conv.id + '"]');
+                        var seenId = lastSeen[conv.id];
+                        var hasNew = conv.last_msg_id && conv.last_msg_id !== seenId;
 
-                    if (hasNew) {
-                        lastSeen[conv.id] = conv.last_msg_id;
-                        if (!isFirstPoll) {
+                        if (hasNew) {
+                            lastSeen[conv.id] = conv.last_msg_id;
                             showToast(conv.id, conv.contact_name, conv.last_msg_preview);
                         }
-                    }
 
-                    // Always update badges using server-side count
-                    var serverCount = conv.panel_unread_count || 0;
-                    if (!rowExists && !isFirstPoll) {
-                        insertNewRow(conv);
-                    } else if (rowExists) {
-                        updateRowMeta(conv);
-                    }
-                    updateRowBadge(conv.id, serverCount);
-                });
+                        var serverCount = conv.panel_unread_count || 0;
+                        if (!rowExists) {
+                            insertNewRow(conv);
+                        } else {
+                            updateRowMeta(conv);
+                        }
+                        updateRowBadge(conv.id, serverCount);
+                    });
 
-                // Reorder rows by server order
-                if (!isFirstPoll) {
+                    // Reorder rows by server order
                     var tbody = document.querySelector('.conversations-table tbody');
                     if (tbody) {
-                        var serverOrder = data.conversations.map(function (c) { return c.id; });
-                        serverOrder.forEach(function (convId, index) {
+                        var serverOrder = data.conversations.map(function(c) { return c.id; });
+                        serverOrder.forEach(function(convId, index) {
                             var row = tbody.querySelector('tr[data-conv-id="' + convId + '"]');
                             if (row && tbody.children[index] !== row) {
                                 tbody.insertBefore(row, tbody.children[index]);
@@ -844,28 +843,45 @@
                     }
                     var mobileContainer = document.getElementById('convMobileCards');
                     if (mobileContainer) {
-                        var mobileOrder = data.conversations.map(function (c) { return c.id; });
-                        mobileOrder.forEach(function (convId, index) {
+                        var mobileOrder = data.conversations.map(function(c) { return c.id; });
+                        mobileOrder.forEach(function(convId, index) {
                             var card = mobileContainer.querySelector('.conv-card[data-conv-id="' + convId + '"]');
                             if (card && mobileContainer.children[index] !== card) {
                                 mobileContainer.insertBefore(card, mobileContainer.children[index]);
                             }
                         });
                     }
-                }
 
-                setLastSeen(lastSeen);
+                    setLastSeen(lastSeen);
 
-                // Use server-provided total_unread for sidebar badge
-                var totalUnread = data.total_unread || 0;
-                document.dispatchEvent(new CustomEvent('unread-count-changed', { detail: { count: totalUnread } }));
-
-                isFirstPoll = false;
-            })
-            .catch(function () { });
+                    var totalUnread = data.total_unread || 0;
+                    document.dispatchEvent(new CustomEvent('unread-count-changed', { detail: { count: totalUnread } }));
+                })
+                .catch(function() {});
+        }, 300);
     }
 
-    pollConversationUpdates();
-    setInterval(pollConversationUpdates, POLL_INTERVAL);
+    // Primer fetch para registrar IDs y unread
+    fetch('/panel/conversaciones/actualizaciones/')
+        .then(function(res) { return res.json(); })
+        .then(function(data) {
+            var lastSeen = getLastSeen();
+            data.conversations.forEach(function(conv) {
+                lastSeen[conv.id] = conv.last_msg_id;
+                updateRowBadge(conv.id, conv.panel_unread_count || 0);
+            });
+            setLastSeen(lastSeen);
+            var totalUnread = data.total_unread || 0;
+            document.dispatchEvent(new CustomEvent('unread-count-changed', { detail: { count: totalUnread } }));
+        })
+        .catch(function() {});
+
+    // Suscribirse al inbox via WebSocket
+    if (typeof PanelRealtime !== 'undefined') {
+        var listInbox = PanelRealtime.subscribeInbox();
+        listInbox.on('inbox_update', function(data) {
+            debouncedListRefresh();
+        });
+    }
 </script>
 {% endblock %}

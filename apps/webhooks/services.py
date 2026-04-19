@@ -122,7 +122,8 @@ class ChatOrchestrator:
             }
 
         # 5. Procesar según el estado del menú
-        response_data = ChatOrchestrator._process_by_state(conversation, message_text, business)
+        usage_acc = {'tokens': 0, 'cost': 0.0}
+        response_data = ChatOrchestrator._process_by_state(conversation, message_text, business, usage_acc)
 
         # _process_by_state puede devolver:
         #   - un string (texto plano, respuesta IA o mensaje simple)
@@ -141,21 +142,17 @@ class ChatOrchestrator:
                 conversation=conversation,
                 role='assistant',
                 content=response_text,
-                tokens_used=getattr(conversation, 'last_tokens_used', 0),
-                ai_cost=getattr(conversation, 'last_ai_cost', 0.0)
+                tokens_used=usage_acc.get('tokens', 0),
+                ai_cost=usage_acc.get('cost', 0.0)
             )
-            
-            # Reset the temporary tracking attributes so they don't leak
-            if hasattr(conversation, 'last_tokens_used'):
-                delattr(conversation, 'last_tokens_used')
-            if hasattr(conversation, 'last_ai_cost'):
-                delattr(conversation, 'last_ai_cost')
+            # Incrementar contador de mensajes IA en sesión si hubo tokens usados
+            if usage_acc.get('tokens', 0) > 0:
+                conversation.ai_messages_in_session = (conversation.ai_messages_in_session or 0) + 1
 
         # 6.5 Límite de mensajes IA: derivar a humano si se supera
         config = business.config
         if config.ai_max_messages > 0 and conversation.is_ai_active:
-            ai_msg_count = conversation.messages.filter(role='assistant').count()
-            if ai_msg_count >= config.ai_max_messages:
+            if (conversation.ai_messages_in_session or 0) >= config.ai_max_messages:
                 conversation.is_ai_active = False
                 conversation.menu_state = 'human_chat'
                 conversation.human_needed_at = timezone.now()
@@ -182,7 +179,7 @@ class ChatOrchestrator:
         conversation.save(update_fields=[
             'status', 'menu_state', 'menu_selections',
             'current_menu_category_id', 'current_menu_subcategory_id',
-            'is_ai_active',
+            'is_ai_active', 'ai_messages_in_session',
             'classification', 'classification_confidence', 'summary',
             'human_needed_at', 'assigned_to', 'panel_unread_count',
             'updated_at',
@@ -240,12 +237,25 @@ class ChatOrchestrator:
             return None, False, None
 
     @staticmethod
-    def _process_by_state(conversation, message_text, business):
+    def _ai_generate(conversation, message_text, usage_acc):
+        """
+        Helper que llama a ai_service.generate_response y acumula usage.
+        Retorna solo el texto de la respuesta.
+        """
+        text, usage = ai_service.generate_response(conversation, message_text)
+        usage_acc['tokens'] = usage_acc.get('tokens', 0) + usage.get('tokens', 0)
+        usage_acc['cost'] = usage_acc.get('cost', 0.0) + usage.get('cost', 0.0)
+        return text
+
+    @staticmethod
+    def _process_by_state(conversation, message_text, business, usage_acc=None):
         """
         Procesa el mensaje según el estado actual del menú.
         Retorna un string (texto plano) o un dict {'text': str, 'interactive_list': dict}
         cuando corresponde enviar un Interactive List Message de WhatsApp.
         """
+        if usage_acc is None:
+            usage_acc = {'tokens': 0, 'cost': 0.0}
         config = business.config
         state = conversation.menu_state
 
@@ -271,7 +281,7 @@ class ChatOrchestrator:
                 # No es un número ni un ID válido
                 if not config.menu_force_selection:
                     conversation.menu_state = 'ai_chat'
-                    response = ai_service.generate_response(conversation, message_text)
+                    response = ChatOrchestrator._ai_generate(conversation, message_text, usage_acc)
                     return response
                 # Re-mostrar el menú con aviso
                 greeting, has_menu = MenuService.get_greeting_with_menu(business)
@@ -296,7 +306,7 @@ class ChatOrchestrator:
 
             if next_state == 'ai_chat' and not response:
                 context_msg = f'El usuario seleccionó la categoría: {category.name}'
-                return ai_service.generate_response(conversation, context_msg)
+                return ChatOrchestrator._ai_generate(conversation, context_msg, usage_acc)
 
             # Si el next_state es submenu, agregar interactive list data
             if next_state == 'submenu' and category:
@@ -371,7 +381,7 @@ class ChatOrchestrator:
 
             if next_state == 'ai_chat' and not response:
                 context_msg = f'El usuario seleccionó: {category.name} > {subcategory.name}'
-                return ai_service.generate_response(conversation, context_msg)
+                return ChatOrchestrator._ai_generate(conversation, context_msg, usage_acc)
 
             if response and next_state == 'ai_chat':
                 return response
@@ -439,7 +449,7 @@ class ChatOrchestrator:
                     return ChatOrchestrator._make_menu_response(submenu_text, interactive_data)
                 except MenuCategory.DoesNotExist:
                     conversation.menu_state = 'ai_chat'
-                    return ai_service.generate_response(conversation, message_text)
+                    return ChatOrchestrator._ai_generate(conversation, message_text, usage_acc)
 
             if child:
                 if conversation.menu_selections:
@@ -451,7 +461,7 @@ class ChatOrchestrator:
             if next_state == 'ai_chat' and not response:
                 category_name = subcategory.category.name
                 context_msg = f'El usuario seleccionó: {category_name} > {subcategory.name} > {child.name}'
-                return ai_service.generate_response(conversation, context_msg)
+                return ChatOrchestrator._ai_generate(conversation, context_msg, usage_acc)
 
             if response and next_state == 'ai_chat':
                 return response
@@ -558,7 +568,7 @@ class ChatOrchestrator:
                         interactive_data, _ = MenuService.get_menu_only_interactive_list(business)
                         return ChatOrchestrator._make_menu_response(menu_text, interactive_data)
 
-            response = ai_service.generate_response(conversation, message_text)
+            response = ChatOrchestrator._ai_generate(conversation, message_text, usage_acc)
             return response
 
         # Chat humano (no responder con IA)
@@ -572,7 +582,7 @@ class ChatOrchestrator:
     def _classify_and_summarize(conversation):
         """Clasifica y resume la conversación con IA."""
         try:
-            classification, confidence, summary = ai_service.classify_conversation(conversation)
+            classification, confidence, summary, _usage = ai_service.classify_conversation(conversation)
             if classification:
                 conversation.classification = classification
                 conversation.classification_confidence = confidence
@@ -781,7 +791,8 @@ class ChatOrchestrator:
 
     @staticmethod
     def activate_ai(conversation):
-        """Reactivar la IA en la conversación."""
+        """Reactivar la IA en la conversación. Resetea contador de mensajes."""
         conversation.is_ai_active = True
         conversation.menu_state = 'ai_chat'
-        conversation.save(update_fields=['is_ai_active', 'menu_state'])
+        conversation.ai_messages_in_session = 0
+        conversation.save(update_fields=['is_ai_active', 'menu_state', 'ai_messages_in_session'])

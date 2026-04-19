@@ -1078,23 +1078,21 @@
         } catch (e) { }
     }
 
-    function pollNewMessages() {
-        const url = `/panel/conversaciones/${conversationId}/mensajes/?last_msg_id=${lastMessageId}`;
-        fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(res => res.json())
-            .then(data => {
-                if (data.messages && data.messages.length > 0) {
-                    const isAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 50;
-                    data.messages.forEach(appendMessage);
-                    if (isAtBottom) {
-                        chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
-                    }
-                }
-            })
-            .catch(err => console.error('Error polling messages:', err));
+    // ── WebSocket para mensajes en tiempo real ──
+    if (typeof PanelRealtime !== 'undefined') {
+        var convSock = PanelRealtime.subscribeConversation(conversationId);
+        convSock.on('chat_message', function(data) {
+            var msg = data.message;
+            if (!msg) return;
+            // No duplicar si ya existe en el DOM
+            if (document.querySelector('[data-msg-id="' + msg.id + '"]')) return;
+            var isAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 50;
+            appendMessage(msg);
+            if (isAtBottom) {
+                chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
+            }
+        });
     }
-
-    setInterval(pollNewMessages, 3000);
 
     // ── Chat list sidebar (real-time) ──
     var CHAT_LIST_POLL = 5000;
@@ -1159,20 +1157,30 @@
         }
     }
 
-    function pollChatList() {
+    // Primer fetch para la lista
+    function fetchChatList() {
         fetch('/panel/conversaciones/actualizaciones/', { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(function (res) { return res.json(); })
-            .then(function (data) {
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
                 if (data.conversations) {
                     chatListData = data.conversations;
                     renderChatList(chatListData);
                 }
             })
-            .catch(function () { });
+            .catch(function() {});
     }
 
-    pollChatList();
-    setInterval(pollChatList, CHAT_LIST_POLL);
+    fetchChatList();
+
+    // WebSocket para actualizar lista lateral en tiempo real
+    if (typeof PanelRealtime !== 'undefined') {
+        var detailInbox = PanelRealtime.subscribeInbox();
+        detailInbox.on('inbox_update', function(data) {
+            // Debounce re-fetch
+            clearTimeout(window._detailListTimer);
+            window._detailListTimer = setTimeout(fetchChatList, 500);
+        });
+    }
 
     var chatListSearchEl = document.getElementById('chatListSearch');
     if (chatListSearchEl) {

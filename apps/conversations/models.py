@@ -69,10 +69,25 @@ class Tag(models.Model):
 
 
 
+class ConversationQuerySet(models.QuerySet):
+    def sum_panel_unread(self):
+        """Calcula la suma de mensajes no leídos del panel en el QuerySet actual."""
+        return self.aggregate(total=models.Sum('panel_unread_count'))['total'] or 0
+
+class ConversationManager(models.Manager):
+    def get_queryset(self):
+        return ConversationQuerySet(self.model, using=self._db)
+
+    def sum_panel_unread(self):
+        return self.get_queryset().sum_panel_unread()
+
+
 class Conversation(models.Model):
     """
     Hilo de conversación entre un contacto y el chatbot/recepcionista.
     """
+    objects = ConversationManager()
+
     STATUS_CHOICES = [
         ('activa', 'Activa'),
         ('en_seguimiento', 'En seguimiento'),
@@ -163,6 +178,12 @@ class Conversation(models.Model):
     panel_unread_count = models.IntegerField(
         'Mensajes no leídos', default=0,
         help_text='Cantidad de mensajes nuevos del cliente desde que un agente abrió el chat por última vez.'
+    )
+
+    # Contador de mensajes IA en la sesión actual (se resetea al reactivar IA)
+    ai_messages_in_session = models.IntegerField(
+        'Mensajes IA en sesión', default=0,
+        help_text='Cantidad de mensajes generados por IA en la sesión actual. Se resetea al reactivar la IA.'
     )
 
     tags = models.ManyToManyField(

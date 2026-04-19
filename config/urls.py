@@ -6,7 +6,7 @@ from django.urls import path, include
 import os
 from django.conf import settings
 from django.conf.urls.static import static
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from django.views.generic import RedirectView
 from apps.core.admin_views import backup_view
 from apps.webhooks.views import WhatsAppWebhookView
@@ -18,6 +18,7 @@ def _serve_sw(request):
 
 urlpatterns = [
     path('sw.js', _serve_sw, name='service_worker'),
+    path('health/', lambda request: HttpResponse('ok', content_type='text/plain'), name='health_check'),
     path('', RedirectView.as_view(url='/panel/', permanent=False)),
     path('admin/backup/', backup_view, name='admin_backup'),
     path('admin/', admin.site.urls),

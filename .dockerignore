@@ -1,11 +1,13 @@
 venv/
 env/
 .env
+.env.*
 __pycache__/
 *.py[cod]
 *.pyo
 db.sqlite3
 media/
+staticfiles/
 .vscode/
 .idea/
 *.swp
@@ -13,3 +15,7 @@ media/
 .gitignore
 *.md
 temp_curl_output.txt
+node_modules/
+.mypy_cache/
+.pytest_cache/
+docker-compose*.yml

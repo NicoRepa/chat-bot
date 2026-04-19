@@ -1,6 +1,8 @@
 """
 Vistas API para webhooks.
 """
+import hashlib
+import hmac
 import json
 import logging
 from django.http import HttpResponse, JsonResponse
@@ -178,7 +180,7 @@ class WhatsAppWebhookView(View):
     def post(self, request):
         """
         Recibe notificaciones de la WhatsApp Cloud API.
-        Parsea el payload, extrae mensajes de texto y los procesa.
+        Parsea el payload, extrae mensajes de texto y los procesa en background.
         """
         try:
             payload = json.loads(request.body)
@@ -189,133 +191,138 @@ class WhatsAppWebhookView(View):
         if payload.get('object') != 'whatsapp_business_account':
             return HttpResponse('OK', status=200)
 
-        # Procesar cada entry/change
-        for entry in payload.get('entry', []):
-            for change in entry.get('changes', []):
-                value = change.get('value', {})
+        # 1. Validar firma HMAC si hay app_secret configurado
+        from apps.core.models import BusinessConfig
+        configs_with_secret = BusinessConfig.objects.exclude(
+            whatsapp_app_secret=''
+        ).exclude(whatsapp_app_secret__isnull=True)[:1]
 
-                # Solo procesar mensajes (no statuses)
-                if 'messages' not in value:
-                    continue
+        if configs_with_secret:
+            app_secret = configs_with_secret[0].whatsapp_app_secret
+            signature_header = request.META.get('HTTP_X_HUB_SIGNATURE_256', '')
+            if not self._verify_signature(request.body, app_secret, signature_header):
+                logger.warning('Firma X-Hub-Signature-256 inválida en webhook WhatsApp')
+                return HttpResponse('Forbidden', status=403)
 
-                metadata = value.get('metadata', {})
-                phone_number_id = metadata.get('phone_number_id', '')
+        # 2. Procesar el payload en un hilo separado (Non-blocking)
+        # Esto asegura que Meta reciba el 200 OK inmediatamente.
+        import threading
+        from django.db import connection
 
-                # Buscar negocio por phone_number_id
+        def process_threaded(payload_data):
+            try:
+                # Importar aquí para evitar circular imports y asegurar contexto
+                from apps.webhooks.services import ChatOrchestrator
+                from apps.webhooks.whatsapp_service import WhatsAppService
                 from apps.core.models import BusinessConfig
-                config = BusinessConfig.objects.filter(
-                    whatsapp_phone_id=phone_number_id
-                ).select_related('business', 'business__config').first()
 
-                if not config:
-                    logger.warning(f'No se encontró negocio para phone_id: {phone_number_id}')
-                    continue
+                for entry in payload_data.get('entry', []):
+                    for change in entry.get('changes', []):
+                        value = change.get('value', {})
+                        if 'messages' not in value:
+                            continue
 
-                business = config.business
+                        metadata = value.get('metadata', {})
+                        phone_number_id = metadata.get('phone_number_id', '')
 
-                for message in value.get('messages', []):
-                    msg_type = message.get('type')
-                    sender = message.get('from', '')
-                    msg_id = message.get('id', '')
+                        config = BusinessConfig.objects.filter(
+                            whatsapp_phone_id=phone_number_id
+                        ).select_related('business', 'business__config').first()
 
-                    # Obtener nombre del contacto
-                    sender_name = ''
-                    contacts = value.get('contacts', [])
-                    if contacts:
-                        profile = contacts[0].get('profile', {})
-                        sender_name = profile.get('name', '')
+                        if not config:
+                            continue
 
-                    # Por ahora solo procesamos mensajes de texto
-                    msg_metadata = {'whatsapp_msg_id': msg_id}
-                    
-                    if msg_type == 'text':
-                        text_body = message.get('text', {}).get('body', '')
-                    elif msg_type == 'interactive':
-                        # Botones o listas interactivas
-                        interactive = message.get('interactive', {})
-                        if interactive.get('type') == 'button_reply':
-                            text_body = interactive.get('button_reply', {}).get('title', '')
-                        elif interactive.get('type') == 'list_reply':
-                            # Usar el ID del row para identificar la selección
-                            # (e.g., 'main_1', 'sub_2', 'back_main')
-                            text_body = interactive.get('list_reply', {}).get('id', '')
-                        else:
+                        business = config.business
+
+                        for message in value.get('messages', []):
+                            msg_type = message.get('type')
+                            sender = message.get('from', '')
+                            msg_id = message.get('id', '')
+                            
+                            sender_name = ''
+                            contacts = value.get('contacts', [])
+                            if contacts:
+                                profile = contacts[0].get('profile', {})
+                                sender_name = profile.get('name', '')
+
+                            msg_metadata = {'whatsapp_msg_id': msg_id}
                             text_body = ''
-                    elif msg_type in ['image', 'video', 'audio', 'document']:
-                        media_data = message.get(msg_type, {})
-                        media_id = media_data.get('id')
-                        
-                        if media_id and config.whatsapp_token:
-                            # Descargar e subir a Cloudinary
-                            file_name = media_data.get('filename', '')
-                            secure_url = WhatsAppService.download_media(media_id, config.whatsapp_token, msg_type, file_name)
-                            if secure_url:
-                                msg_metadata['media_url'] = secure_url
-                                msg_metadata['media_type'] = msg_type
-                                msg_metadata['mime_type'] = media_data.get('mime_type', '')
-                                
-                                # Texto representativo
-                                caption = media_data.get('caption', '')
-                                if caption:
-                                    text_body = caption
+
+                            if msg_type == 'text':
+                                text_body = message.get('text', {}).get('body', '')
+                            elif msg_type == 'interactive':
+                                interactive = message.get('interactive', {})
+                                if interactive.get('type') == 'button_reply':
+                                    text_body = interactive.get('button_reply', {}).get('title', '')
+                                elif interactive.get('type') == 'list_reply':
+                                    text_body = interactive.get('list_reply', {}).get('id', '')
+                            elif msg_type in ['image', 'video', 'audio', 'document']:
+                                media_data = message.get(msg_type, {})
+                                media_id = media_data.get('id')
+                                if media_id and config.whatsapp_token:
+                                    secure_url = WhatsAppService.download_media(media_id, config.whatsapp_token, msg_type, media_data.get('filename', ''))
+                                    if secure_url:
+                                        msg_metadata['media_url'] = secure_url
+                                        msg_metadata['media_type'] = msg_type
+                                        text_body = media_data.get('caption', '')
+                            
+                            if not text_body and 'media_url' not in msg_metadata:
+                                continue
+
+                            # Marcar como leído
+                            if msg_id and config.whatsapp_token:
+                                WhatsAppService.mark_as_read(phone_number_id, config.whatsapp_token, msg_id)
+
+                            # Procesar e IA
+                            result = ChatOrchestrator.process_incoming_message(
+                                business=business,
+                                platform='whatsapp',
+                                external_id=sender,
+                                sender_name=sender_name,
+                                message_text=text_body,
+                                metadata=msg_metadata
+                            )
+
+                            # Enviar respuesta
+                            response_text = result.get('response')
+                            interactive_list = result.get('interactive_list')
+
+                            if response_text and config.whatsapp_token and phone_number_id:
+                                if interactive_list:
+                                    WhatsAppService.send_interactive_list_message(
+                                        phone_number_id, config.whatsapp_token, sender,
+                                        interactive_list['body_text'], interactive_list['button_text'], interactive_list['sections'],
+                                        interactive_list.get('header_text'), interactive_list.get('footer_text')
+                                    )
                                 else:
-                                    text_body = ''
-                            else:
-                                text_body = f'[Error descargando {msg_type}]'
-                        else:
-                            text_body = f'[{msg_type} adjunto sin procesar]'
-                    else:
-                        # Otros tipos no soportados
-                        text_body = f'[{msg_type}]'
+                                    WhatsAppService.send_text_message(phone_number_id, config.whatsapp_token, sender, response_text)
 
-                    if not text_body and 'media_url' not in msg_metadata:
-                        continue
+            except Exception as e:
+                logger.error(f'Error en proceso asíncrono de webhook: {e}', exc_info=True)
+            finally:
+                # Cerrar la conexión en el hilo para evitar fugas/leaks
+                connection.close()
 
-                    # Marcar como leído
-                    if msg_id and config.whatsapp_token:
-                        WhatsAppService.mark_as_read(
-                            phone_number_id, config.whatsapp_token, msg_id
-                        )
+        # Disparar hilo y retornar
+        threading.Thread(target=process_threaded, args=(payload,), daemon=True).start()
 
-                    # Procesar mensaje
-                    try:
-                        result = ChatOrchestrator.process_incoming_message(
-                            business=business,
-                            platform='whatsapp',
-                            external_id=sender,
-                            sender_name=sender_name,
-                            message_text=text_body,
-                            metadata=msg_metadata
-                        )
-
-                        # Enviar respuesta por WhatsApp
-                        response_text = result.get('response')
-                        interactive_list = result.get('interactive_list')
-
-                        if response_text and config.whatsapp_token and phone_number_id:
-                            if interactive_list:
-                                # Enviar como Interactive List Message nativo de WhatsApp
-                                WhatsAppService.send_interactive_list_message(
-                                    phone_number_id=phone_number_id,
-                                    access_token=config.whatsapp_token,
-                                    recipient=sender,
-                                    body_text=interactive_list['body_text'],
-                                    button_text=interactive_list['button_text'],
-                                    sections=interactive_list['sections'],
-                                    header_text=interactive_list.get('header_text'),
-                                    footer_text=interactive_list.get('footer_text'),
-                                )
-                            else:
-                                WhatsAppService.send_text_message(
-                                    phone_number_id=phone_number_id,
-                                    access_token=config.whatsapp_token,
-                                    recipient=sender,
-                                    text=response_text,
-                                )
-
-                    except Exception as e:
-                        logger.error(f'Error procesando mensaje WhatsApp: {e}', exc_info=True)
-
-        # WhatsApp espera siempre 200 OK
         return HttpResponse('OK', status=200)
 
+    @staticmethod
+    def _verify_signature(body_bytes, app_secret, signature_header):
+        """
+        Valida X-Hub-Signature-256 de Meta.
+        Retorna True si la firma es válida, False si no.
+        Si no hay signature header, retorna False.
+        """
+        if not signature_header:
+            return False
+        # El header viene como "sha256=<hex_digest>"
+        parts = signature_header.split('=', 1)
+        if len(parts) != 2 or parts[0] != 'sha256':
+            return False
+        expected_sig = parts[1]
+        if isinstance(app_secret, str):
+            app_secret = app_secret.encode()
+        computed = hmac.new(app_secret, body_bytes, hashlib.sha256).hexdigest()
+        return hmac.compare_digest(computed, expected_sig)
