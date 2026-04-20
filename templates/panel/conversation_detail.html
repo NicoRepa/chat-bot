@@ -41,74 +41,46 @@
             <div class="chat-main">
                 <div class="chat-header">
                     <div class="chat-header-info">
-                        <!-- Back button only visible on mobile -->
-                        <a href="{% url 'panel:conversation_list' %}" class="btn btn-ghost btn-sm mobile-back-btn" title="Volver">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                        <!-- Botón volver siempre visible (en desktop lleva al listado) -->
+                        <a href="{% url 'panel:conversation_list' %}" class="chat-back-btn" title="Volver">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
                         </a>
-                        <div class="contact-avatar">
-                            {{ conversation.contact.name|first|default:"?" }}
-                        </div>
-                        <div style="min-width: 0;">
+                        <div class="contact-avatar">{{ conversation.contact.name|first|default:"?" }}</div>
+                        <div style="min-width: 0; flex: 1;">
                             <div class="contact-name">{{ conversation.contact.name|default:"Sin nombre" }}</div>
-                            <div class="contact-id"
-                                style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ conversation.contact.platform }} · {{ conversation.contact.external_id }}</div>
+                            <div class="contact-meta">
+                                <span class="status-dot status-{{ conversation.status }}"></span>
+                                <span id="header-status-text">{{ conversation.get_status_display }}</span>
+                                <span style="color:var(--border);">·</span>
+                                <span style="color:var(--text-muted);">{{ conversation.contact.platform }}</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="chat-header-actions">
-                        <!-- Estado -->
-                        <form id="status-form" data-conv-action method="post" action="{% url 'panel:update_status' conversation.id %}"
-                            style="display:inline;">
+                    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+                        <!-- IA toggle: rápido acceso desde el header -->
+                        <form id="ai-toggle-form" data-conv-action method="post" action="{% url 'panel:toggle_ai' conversation.id %}" style="display:inline;">
                             {% csrf_token %}
-                            <select name="status" id="status-select" class="status-select" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}))"
-                                style="width:auto;">
-                                {% for key, label in status_choices %}
-                                <option value="{{ key }}" {% if conversation.status == key %}selected{% endif %}>{{ label }}</option>
-                                {% endfor %}
-                            </select>
-                        </form>
-
-                        <!-- IA toggle: ambos botones en DOM, se muestran/ocultan vía JS -->
-                        <form id="ai-toggle-form" data-conv-action method="post" action="{% url 'panel:toggle_ai' conversation.id %}"
-                            style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" id="ai-btn-takeover" class="btn btn-outline btn-sm" title="Tomar control"
+                            <button type="submit" id="ai-btn-takeover" class="btn btn-outline btn-sm" title="Tomar control (IA activa)"
                                 {% if not conversation.is_ai_active %}style="display:none;"{% endif %}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" style="vertical-align: middle;">
-                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                    <circle cx="12" cy="7" r="4" />
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
                                 </svg>
                                 <span class="action-label">Tomar control</span>
                             </button>
                             <button type="submit" id="ai-btn-activate" class="btn btn-primary btn-sm" title="Activar IA"
                                 {% if conversation.is_ai_active %}style="display:none;"{% endif %}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" style="vertical-align: middle;">
-                                    <rect x="3" y="11" width="18" height="10" rx="2" />
-                                    <circle cx="12" cy="5" r="2" />
-                                    <path d="M12 7v4" />
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/>
                                 </svg>
                                 <span class="action-label">Activar IA</span>
                             </button>
                         </form>
-
-                        <!-- Reenviar menú -->
-                        <form data-conv-action method="post" action="{% url 'panel:resend_menu' conversation.id %}"
-                            style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-outline btn-sm" title="Enviar menú">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" style="vertical-align: middle;">
-                                    <line x1="8" y1="6" x2="21" y2="6" />
-                                    <line x1="8" y1="12" x2="21" y2="12" />
-                                    <line x1="8" y1="18" x2="21" y2="18" />
-                                    <line x1="3" y1="6" x2="3.01" y2="6" />
-                                    <line x1="3" y1="12" x2="3.01" y2="12" />
-                                    <line x1="3" y1="18" x2="3.01" y2="18" />
-                                </svg>
-                                <span class="action-label">Menú</span>
-                            </button>
-                        </form>
+                        <!-- Botón info (abre sidebar en mobile Y desktop) -->
+                        <button class="btn btn-ghost btn-sm" onclick="toggleMobileInfo()" title="Ver información" style="padding:6px 8px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
@@ -247,10 +219,35 @@
 
             <!-- Sidebar info (desktop: side panel, mobile: drawer) -->
             <div class="chat-sidebar" id="chatInfoSidebar">
-                <!-- Mobile close button -->
+                <!-- Header del sidebar -->
                 <div class="mobile-info-header">
                     <h2 style="font-size: 15px; font-weight: 700; margin: 0;">Información</h2>
                     <button class="btn btn-ghost btn-sm" onclick="toggleMobileInfo()">✕</button>
+                </div>
+
+                <!-- Acciones rápidas (Estado + Menú) — siempre visibles en sidebar -->
+                <div class="info-card" style="padding: 10px 14px;">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <form id="status-form" data-conv-action method="post" action="{% url 'panel:update_status' conversation.id %}" style="flex:1;min-width:120px;">
+                            {% csrf_token %}
+                            <select name="status" id="status-select" class="status-select" style="width:100%;"
+                                onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}))">
+                                {% for key, label in status_choices %}
+                                <option value="{{ key }}" {% if conversation.status == key %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </form>
+                        <form data-conv-action method="post" action="{% url 'panel:resend_menu' conversation.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline btn-sm" title="Reenviar menú" style="white-space:nowrap;">
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;">
+                                    <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+                                    <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+                                </svg>
+                                Menú
+                            </button>
+                        </form>
+                    </div>
                 </div>
 
                 <!-- Asignación de agente -->
@@ -562,12 +559,46 @@
         display: none;
     }
 
-    /* Back button in chat header — desktop: hidden, mobile: visible */
-    .mobile-back-btn {
-        display: none;
+    /* Botón volver del chat header */
+    .chat-back-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        color: var(--text-secondary);
         flex-shrink: 0;
-        padding: 6px;
+        transition: background 0.15s;
+        text-decoration: none;
     }
+    .chat-back-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    /* Meta de contacto debajo del nombre */
+    .contact-meta {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 11px;
+        color: var(--text-secondary);
+        margin-top: 1px;
+        overflow: hidden;
+    }
+
+    /* Punto de estado de color */
+    .status-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        background: var(--text-muted);
+    }
+    .status-dot.status-activa { background: var(--success); }
+    .status-dot.status-en_seguimiento { background: var(--info); }
+    .status-dot.status-esperando_cliente { background: var(--warning); }
+    .status-dot.status-pausada { background: var(--text-muted); }
+    .status-dot.status-finalizada,
+    .status-dot.status-archivada { background: var(--border); }
 
     /* Hide action labels on small screens */
     @media (max-width: 900px) {
@@ -777,6 +808,35 @@
         const chatInputForm = document.querySelector('.chat-input-form');
         const submitBtn = chatInputForm ? chatInputForm.querySelector('button[type="submit"]') : null;
 
+        // Submit handler siempre activo — no condicionado a attachBtn
+        if (chatInputForm) {
+            chatInputForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const textInput = chatInputForm.querySelector('input[name="message"]');
+                const hasFile = mediaFileInput && mediaFileInput.files && mediaFileInput.files.length > 0;
+                if (!textInput || (!textInput.value.trim() && !hasFile)) return;
+
+                const formData = new FormData(chatInputForm);
+
+                textInput.value = '';
+                if (mediaFileInput) mediaFileInput.value = '';
+                if (previewContainer) previewContainer.style.display = 'none';
+                if (previewName) previewName.textContent = '';
+                if (submitBtn) submitBtn.disabled = true;
+                textInput.focus();
+
+                fetch(chatInputForm.action, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData,
+                })
+                .catch(console.error)
+                .finally(function() {
+                    if (submitBtn) submitBtn.disabled = false;
+                });
+            });
+        }
+
         if (attachBtn && mediaFileInput) {
             attachBtn.addEventListener('click', function() {
                 mediaFileInput.click();
@@ -802,44 +862,6 @@
                 mediaFileInput.value = '';
                 previewContainer.style.display = 'none';
             });
-            
-            if (chatInputForm) {
-                chatInputForm.addEventListener('submit', function(e) {
-                    e.preventDefault();
-                    const textInput = chatInputForm.querySelector('input[name="message"]');
-                    const hasFile = mediaFileInput && mediaFileInput.files && mediaFileInput.files.length > 0;
-                    if (!textInput.value.trim() && !hasFile) return;
-
-                    if (submitBtn) {
-                        submitBtn.disabled = true;
-                        submitBtn.textContent = '...';
-                    }
-
-                    const formData = new FormData(chatInputForm);
-                    fetch(chatInputForm.action, {
-                        method: 'POST',
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                        body: formData,
-                    })
-                    .then(function(r) { return r.json(); })
-                    .then(function(data) {
-                        if (data.ok) {
-                            textInput.value = '';
-                            if (mediaFileInput) mediaFileInput.value = '';
-                            if (previewContainer) previewContainer.style.display = 'none';
-                            if (previewName) previewName.textContent = '';
-                        }
-                    })
-                    .catch(console.error)
-                    .finally(function() {
-                        if (submitBtn) {
-                            submitBtn.disabled = false;
-                            submitBtn.textContent = 'Enviar';
-                        }
-                        textInput.focus();
-                    });
-                });
-            }
         }
 
         // Audio recording handler
@@ -1040,6 +1062,7 @@
     // Track the last date displayed in the chat
     var lastDateKey = '';
     (function () {
+        if (!chatMessages) return;
         var allSeps = chatMessages.querySelectorAll('.date-separator');
         if (allSeps.length > 0) {
             lastDateKey = allSeps[allSeps.length - 1].dataset.date || '';
@@ -1129,6 +1152,14 @@
         // Status select
         var statusSel = document.getElementById('status-select');
         if (statusSel && conv.status) statusSel.value = conv.status;
+
+        // Punto de estado en el header
+        var dot = document.querySelector('.status-dot');
+        if (dot && conv.status) {
+            dot.className = 'status-dot status-' + conv.status;
+        }
+        var headerStatus = document.getElementById('header-status-text');
+        if (headerStatus && conv.status_display) headerStatus.textContent = conv.status_display;
 
         // Status text en info card
         var infoStatus = document.getElementById('info-status-text');

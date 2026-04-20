@@ -294,6 +294,26 @@ a:hover {
     padding: 28px 32px;
 }
 
+/* En la pantalla de conversación, bloquear scroll global —
+   solo .chat-messages puede scrollear */
+body.in-conversation {
+    overflow: hidden;
+    height: 100dvh;
+}
+
+body.in-conversation .layout {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+body.in-conversation .main-content {
+    height: 100dvh;
+    overflow: hidden;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .page-header {
     margin-bottom: 24px;
 }
@@ -570,9 +590,9 @@ a:hover {
 /* When inside conv-detail-layout, chat-container fills remaining height */
 .conv-main-col .chat-container {
     flex: 1;
-    height: auto;
     min-height: 0;
     overflow: hidden;
+    height: 100%;
 }
 
 .chat-main {
@@ -861,7 +881,9 @@ a:hover {
     display: grid;
     grid-template-columns: 260px 1fr;
     gap: 0;
-    height: calc(100vh - 80px);
+    height: 100%;
+    flex: 1;
+    overflow: hidden;
 }
 
 .conv-main-col {
@@ -869,6 +891,7 @@ a:hover {
     flex-direction: column;
     overflow: hidden;
     padding-left: 16px;
+    height: 100%;
 }
 
 .chat-list-sidebar {

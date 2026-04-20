@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(python manage.py makemigrations core --name ai_globally_disabled)",
+      "Bash(python manage.py migrate core)",
+      "Bash(python manage.py makemigrations menu --name menu_level4)",
+      "Bash(python manage.py migrate menu)"
     ]
   }
 }

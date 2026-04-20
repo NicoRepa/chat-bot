@@ -88,3 +88,33 @@ class MenuSubSubcategory(models.Model):
 
     def __str__(self):
         return f'{self.subcategory.category.name} > {self.subcategory.name} > {self.name}'
+
+
+class MenuLevel4(models.Model):
+    """
+    Cuarto nivel del menú: sub-sub-subcategoría.
+    Ejemplo: "Pagos" > "Transferencia" > "Banco X" > "Cuentas corriente", "Caja de ahorro"
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    parent = models.ForeignKey(
+        MenuSubSubcategory, on_delete=models.CASCADE,
+        related_name='children', verbose_name='Nivel 3 padre'
+    )
+    name = models.CharField('Nombre', max_length=100)
+    description = models.TextField('Descripción', blank=True)
+    emoji = models.CharField('Emoji', max_length=10, blank=True)
+    auto_response = models.TextField(
+        'Respuesta automática', blank=True,
+        help_text='Texto que se envía automáticamente al seleccionar esta opción.'
+    )
+    order = models.IntegerField('Orden', default=0)
+    is_active = models.BooleanField('Activa', default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Nivel 4 del menú'
+        verbose_name_plural = 'Niveles 4 del menú'
+        ordering = ['order', 'name']
+
+    def __str__(self):
+        return f'{self.parent.subcategory.category.name} > {self.parent.subcategory.name} > {self.parent.name} > {self.name}'

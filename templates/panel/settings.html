@@ -392,6 +392,15 @@
 
                 <div class="form-group">
                     <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="ai_globally_disabled" {% if config.ai_globally_disabled %}checked{% endif %}
+                            style="width: 16px; height: 16px;">
+                        Desactivar IA globalmente
+                    </label>
+                    <p class="form-hint">Si está activado, la IA no responde automáticamente. Ideal para negocios que solo quieren usar el menú interactivo y atención humana.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" name="menu_enabled" {% if config.menu_enabled %}checked{% endif %}
                             style="width: 16px; height: 16px;">
                         Menú interactivo activado

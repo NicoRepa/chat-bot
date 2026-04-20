@@ -141,8 +141,8 @@ class ChatOrchestrator:
             
         threading.Thread(target=_send_push_async, daemon=True).start()
 
-        # 4. Si la IA no está activa o si el usuario pidió baja (ya manejado arriba)
-        if not conversation.is_ai_active:
+        # 4. Si la IA no está activa, o si está desactivada globalmente para el negocio
+        if not conversation.is_ai_active or getattr(business.config, 'ai_globally_disabled', False):
             conversation.save(update_fields=['panel_unread_count', 'updated_at'])
             return {
                 'response': None,

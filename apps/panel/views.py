@@ -14,7 +14,7 @@ from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from apps.core.models import Business, BusinessConfig, UserProfile
 from apps.conversations.models import Conversation, Message, Contact, ContactNote, Tag, AIFeedback
-from apps.menu.models import MenuCategory, MenuSubcategory, MenuSubSubcategory
+from apps.menu.models import MenuCategory, MenuSubcategory, MenuSubSubcategory, MenuLevel4
 from apps.menu.services import MenuService
 from apps.webhooks.services import ChatOrchestrator
 from apps.webhooks.whatsapp_service import WhatsAppService
@@ -569,7 +569,11 @@ class MenuConfigView(LoginRequiredMixin, View):
 
         categories = MenuCategory.objects.filter(
             business=business
-        ).prefetch_related('subcategories', 'subcategories__children').order_by('order')
+        ).prefetch_related(
+            'subcategories',
+            'subcategories__children',
+            'subcategories__children__children',
+        ).order_by('order')
 
         context = {
             'business': business,
@@ -653,6 +657,7 @@ class SettingsView(LoginRequiredMixin, View):
             pass
         config.knowledge_base = request.POST.get('knowledge_base', '')
         config.greeting_message = request.POST.get('greeting_message', '')
+        config.ai_globally_disabled = request.POST.get('ai_globally_disabled') == 'on'
         config.menu_enabled = request.POST.get('menu_enabled') == 'on'
         config.webhook_secret = request.POST.get('webhook_secret', '')
         config.whatsapp_phone_id = request.POST.get('whatsapp_phone_id', '')
@@ -697,7 +702,7 @@ class SettingsView(LoginRequiredMixin, View):
         config.save(update_fields=[
             'ai_model', 'system_prompt', 'temperature',
             'knowledge_base', 'greeting_message',
-            'menu_enabled', 'webhook_secret',
+            'ai_globally_disabled', 'menu_enabled', 'webhook_secret',
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_verify_token',
             'whatsapp_app_secret',
             'auto_assign_enabled', 'ai_max_messages', 'auto_close_hours',
@@ -906,6 +911,47 @@ class MenuSubSubcategoryDeleteView(LoginRequiredMixin, View):
 
     def post(self, request, item_id):
         item = get_object_or_404(MenuSubSubcategory, pk=item_id)
+        item.delete()
+        return redirect('panel:menu_config')
+
+
+class MenuLevel4CreateView(LoginRequiredMixin, View):
+    login_url = '/admin/login/'
+
+    def post(self, request):
+        parent = get_object_or_404(MenuSubSubcategory, pk=request.POST.get('parent_id'))
+        MenuLevel4.objects.create(
+            parent=parent,
+            name=request.POST.get('name', '').strip(),
+            emoji=request.POST.get('emoji', '').strip(),
+            description=request.POST.get('description', '').strip(),
+            auto_response=request.POST.get('auto_response', '').strip(),
+            order=int(request.POST.get('order', 0) or 0),
+            is_active=request.POST.get('is_active') == 'on',
+        )
+        return redirect('panel:menu_config')
+
+
+class MenuLevel4UpdateView(LoginRequiredMixin, View):
+    login_url = '/admin/login/'
+
+    def post(self, request, item_id):
+        item = get_object_or_404(MenuLevel4, pk=item_id)
+        item.name = request.POST.get('name', item.name).strip()
+        item.emoji = request.POST.get('emoji', item.emoji).strip()
+        item.description = request.POST.get('description', item.description).strip()
+        item.auto_response = request.POST.get('auto_response', item.auto_response).strip()
+        item.order = int(request.POST.get('order', item.order) or 0)
+        item.is_active = request.POST.get('is_active') == 'on'
+        item.save()
+        return redirect('panel:menu_config')
+
+
+class MenuLevel4DeleteView(LoginRequiredMixin, View):
+    login_url = '/admin/login/'
+
+    def post(self, request, item_id):
+        item = get_object_or_404(MenuLevel4, pk=item_id)
         item.delete()
         return redirect('panel:menu_config')
 

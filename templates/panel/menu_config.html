@@ -169,6 +169,69 @@
                             </div>
                         </form>
                     </div>
+
+                    <!-- Nivel 4 — sub-sub-subcategorías -->
+                    {% if child.children.all %}
+                    <div style="margin: 2px 0 4px 20px; display: grid; gap: 2px;">
+                        {% for lvl4 in child.children.all %}
+                        <div style="display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: var(--bg-hover); border-radius: var(--radius-sm); border: 1px solid var(--border-light); font-size: 11px;">
+                            <div class="menu-item-display" id="lvl4Display-{{ lvl4.pk }}" style="display: flex; align-items: center; gap: 6px; flex: 1;">
+                                <span>{% if lvl4.emoji %}{{ lvl4.emoji|safe }}{% else %}–{% endif %}</span>
+                                <span style="font-weight: 500;">{{ lvl4.name }}</span>
+                                {% if lvl4.description %}<span style="color: var(--text-muted);">{{ lvl4.description }}</span>{% endif %}
+                                {% if lvl4.auto_response %}<span style="font-size: 9px; color: var(--success); background: var(--success-bg); padding: 1px 5px; border-radius: var(--radius-full);">Auto</span>{% endif %}
+                            </div>
+                            <button onclick="toggleEdit('lvl4', '{{ lvl4.pk }}')" class="btn btn-ghost btn-sm" style="padding: 2px;">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <form method="post" action="{% url 'panel:menu_level4_delete' lvl4.pk %}" style="display:inline;" onsubmit="return confirm('Eliminar?')">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-ghost btn-sm" style="padding: 2px; color: var(--error);">
+                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                </button>
+                            </form>
+                        </div>
+                        <div class="menu-item-edit" id="lvl4Edit-{{ lvl4.pk }}" style="display: none; padding: 6px 8px; background: var(--bg-card); border-radius: var(--radius-sm); border: 1px solid var(--primary);">
+                            <form method="post" action="{% url 'panel:menu_level4_update' lvl4.pk %}">
+                                {% csrf_token %}
+                                <div class="menu-form-grid">
+                                    <input type="text" name="name" value="{{ lvl4.name }}" required class="menu-input" style="font-size: 11px;">
+                                    <input type="text" name="emoji" value="{{ lvl4.emoji }}" class="menu-input" style="max-width: 56px; font-size: 11px;">
+                                    <input type="number" name="order" value="{{ lvl4.order }}" class="menu-input" style="max-width: 56px; font-size: 11px;">
+                                    <label class="menu-check" style="font-size: 11px;"><input type="checkbox" name="is_active" {% if lvl4.is_active %}checked{% endif %}> Activa</label>
+                                </div>
+                                <input type="text" name="description" value="{{ lvl4.description }}" placeholder="Descripción" class="menu-input" style="width: 100%; margin-top: 4px; font-size: 11px;">
+                                <textarea name="auto_response" placeholder="Auto-respuesta" class="menu-input" style="width: 100%; margin-top: 4px; font-size: 11px; min-height: 32px;">{{ lvl4.auto_response }}</textarea>
+                                <div style="margin-top: 6px; display: flex; gap: 4px;">
+                                    <button type="submit" class="btn btn-primary btn-sm" style="font-size: 11px;">Guardar</button>
+                                    <button type="button" onclick="toggleEdit('lvl4', '{{ lvl4.pk }}')" class="btn btn-ghost btn-sm" style="font-size: 11px;">Cancelar</button>
+                                </div>
+                            </form>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    <!-- Add nivel 4 button -->
+                    <div style="margin: 0 0 4px 20px;">
+                        <button onclick="toggleForm('addLvl4-{{ child.pk }}')" class="btn btn-ghost btn-sm" style="font-size: 10px; color: var(--text-muted);">+ Sub-sub-opción</button>
+                        <div id="addLvl4-{{ child.pk }}" style="display: none; margin-top: 4px;">
+                            <form method="post" action="{% url 'panel:menu_level4_create' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="parent_id" value="{{ child.pk }}">
+                                <div class="menu-form-grid">
+                                    <input type="text" name="name" placeholder="Nombre *" required class="menu-input" style="font-size: 11px;">
+                                    <input type="text" name="emoji" placeholder="Emoji" class="menu-input" style="max-width: 56px; font-size: 11px;">
+                                    <input type="number" name="order" value="0" class="menu-input" style="max-width: 56px; font-size: 11px;">
+                                    <label class="menu-check" style="font-size: 11px;"><input type="checkbox" name="is_active" checked> Activa</label>
+                                </div>
+                                <textarea name="auto_response" placeholder="Auto-respuesta (opcional)" class="menu-input" style="width: 100%; margin-top: 4px; font-size: 11px; min-height: 32px;"></textarea>
+                                <div style="margin-top: 6px; display: flex; gap: 4px;">
+                                    <button type="submit" class="btn btn-primary btn-sm" style="font-size: 11px;">Crear</button>
+                                    <button type="button" onclick="toggleForm('addLvl4-{{ child.pk }}')" class="btn btn-ghost btn-sm" style="font-size: 11px;">Cancelar</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                     {% endfor %}
                 </div>
                 {% endif %}

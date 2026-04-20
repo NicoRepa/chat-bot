@@ -106,6 +106,11 @@ class BusinessConfig(models.Model):
         default=True,
         help_text='Si está activo, el primer mensaje incluye el menú de opciones.'
     )
+    ai_globally_disabled = models.BooleanField(
+        'Desactivar IA globalmente',
+        default=False,
+        help_text='Si está activo, la IA no responde automáticamente. Solo funciona el menú interactivo y la atención humana.'
+    )
 
     # Webhook
     webhook_secret = models.CharField(
