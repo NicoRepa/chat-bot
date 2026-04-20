@@ -377,6 +377,45 @@ Respondé SOLO con un JSON válido, sin texto adicional:
             logger.error(f'Error detectando pedido de humano: {e}')
             return False
 
+    def transcribe_audio(self, audio_url):
+        """
+        Descarga un archivo de audio de la URL (Cloudinary) y lo transcribe usando OpenAI Whisper.
+        Retorna: (text, usage_dict)
+        """
+        if not self.client:
+            return '', {'tokens': 0, 'cost': 0.0}
+
+        try:
+            import requests
+            import io
+            
+            # Descargar audio
+            resp = requests.get(audio_url, timeout=30)
+            resp.raise_for_status()
+            
+            # Detectar formato (Meta suele mandar ogg/opus, Whisper soporta ogg)
+            audio_file = io.BytesIO(resp.content)
+            audio_file.name = 'voice_note.ogg'  # Extensión necesaria para OpenAI
+            
+            # Transcribir
+            transcript = self._call_with_retry(
+                self.client.audio.transcriptions.create,
+                model='whisper-1',
+                file=audio_file
+            )
+            
+            text = transcript.text if transcript else ''
+            
+            # Costo fijo aproximado por transcripción (Whisper cobra $0.006 / minuto)
+            # Para notas de voz cortas ponemos un costo base simbólico
+            usage = {'tokens': 0, 'cost': 0.001}
+            
+            return text, usage
+
+        except Exception as e:
+            logger.error(f'Error transcribiendo audio con Whisper: {e}')
+            return '', {'tokens': 0, 'cost': 0.0}
+
     def summarize_for_agent(self, conversation):
         """
         Genera un resumen corto y claro para el recepcionista.
