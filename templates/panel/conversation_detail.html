@@ -171,7 +171,7 @@
 
                 <!-- Input -->
                 <div class="chat-input-area">
-                    <form method="post" action="{% url 'panel:reply' conversation.id %}" class="chat-input-form" enctype="multipart/form-data">
+                    <form method="post" action="{% url 'panel:reply' conversation.id %}" class="chat-input-form" data-chat-form enctype="multipart/form-data">
                         {% csrf_token %}
                         <div class="chat-input-wrapper" style="display: flex; flex-direction: column; width: 100%;">
                             <div id="file-preview-container" class="file-preview-container" style="display: none; padding: 4px 8px; background: var(--bg-hover); border-radius: 4px; margin-bottom: 8px; border: 1px solid var(--border-light);">
@@ -293,9 +293,9 @@
                             <line x1="3" y1="18" x2="3.01" y2="18" />
                         </svg> Resumen IA</h3>
                     {% if conversation.summary %}
-                    <p>{{ conversation.summary }}</p>
+                    <p class="summary-text">{{ conversation.summary }}</p>
                     {% else %}
-                    <p style="color: var(--text-muted); font-style: italic;">Sin resumen aún</p>
+                    <p class="summary-text" style="color: var(--text-muted); font-style: italic;">Sin resumen aún</p>
                     {% endif %}
                     <form data-conv-action method="post" action="{% url 'panel:refresh_summary' conversation.id %}"
                         style="margin-top: 10px;">
@@ -805,38 +805,6 @@
         const previewContainer = document.getElementById('file-preview-container');
         const previewName = document.getElementById('file-preview-name');
         const removeFileBtn = document.getElementById('remove-file-btn');
-        const chatInputForm = document.querySelector('.chat-input-form');
-        const submitBtn = chatInputForm ? chatInputForm.querySelector('button[type="submit"]') : null;
-
-        // Submit handler siempre activo — no condicionado a attachBtn
-        if (chatInputForm) {
-            chatInputForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const textInput = chatInputForm.querySelector('input[name="message"]');
-                const hasFile = mediaFileInput && mediaFileInput.files && mediaFileInput.files.length > 0;
-                if (!textInput || (!textInput.value.trim() && !hasFile)) return;
-
-                const formData = new FormData(chatInputForm);
-
-                textInput.value = '';
-                if (mediaFileInput) mediaFileInput.value = '';
-                if (previewContainer) previewContainer.style.display = 'none';
-                if (previewName) previewName.textContent = '';
-                if (submitBtn) submitBtn.disabled = true;
-                textInput.focus();
-
-                fetch(chatInputForm.action, {
-                    method: 'POST',
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                    body: formData,
-                })
-                .catch(console.error)
-                .finally(function() {
-                    if (submitBtn) submitBtn.disabled = false;
-                });
-            });
-        }
-
         if (attachBtn && mediaFileInput) {
             attachBtn.addEventListener('click', function() {
                 mediaFileInput.click();
@@ -1221,18 +1189,58 @@
         });
     }
 
-    // ── Interceptor AJAX genérico para forms de acción ──
-    document.querySelectorAll('form[data-conv-action]').forEach(function(form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            var fd = new FormData(form);
-            fetch(form.action, {
-                method: 'POST',
-                headers: { 'X-Requested-With': 'XMLHttpRequest' },
-                body: fd,
-            })
-            .then(function(r) { return r.json(); })
-            .catch(function() {});
+    // ── Interceptor AJAX global — cubre todos los forms del chat ──
+    document.addEventListener('submit', function(e) {
+        var form = e.target;
+        if (!form) return;
+
+        var isChatForm = form.hasAttribute('data-chat-form');
+        var isActionForm = form.hasAttribute('data-conv-action');
+        if (!isChatForm && !isActionForm) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Para el form del chat: validar y limpiar UI
+        if (isChatForm) {
+            var textInput = form.querySelector('input[name="message"]');
+            var fileInput = form.querySelector('input[type="file"]');
+            var hasFile = fileInput && fileInput.files && fileInput.files.length > 0;
+            var hasText = textInput && textInput.value.trim();
+            if (!hasText && !hasFile) return;
+
+            var previewCont = document.getElementById('file-preview-container');
+            var previewNm = document.getElementById('file-preview-name');
+            if (textInput) textInput.value = '';
+            if (fileInput) fileInput.value = '';
+            if (previewCont) previewCont.style.display = 'none';
+            if (previewNm) previewNm.textContent = '';
+            if (textInput) textInput.focus();
+        }
+
+        var submitBtn = form.querySelector('[type=submit]');
+        if (submitBtn) submitBtn.disabled = true;
+
+        fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: new FormData(form),
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (submitBtn) submitBtn.disabled = false;
+            if (data && data.summary !== undefined) {
+                var summaryEl = document.querySelector('.summary-text');
+                if (summaryEl) {
+                    summaryEl.textContent = data.summary || 'Sin resumen aún';
+                    summaryEl.style.fontStyle = data.summary ? 'normal' : 'italic';
+                    summaryEl.style.color = data.summary ? '' : 'var(--text-muted)';
+                }
+            }
+        })
+        .catch(function(err) {
+            if (submitBtn) submitBtn.disabled = false;
+            console.warn('[AJAX submit error]', err);
         });
     });
 

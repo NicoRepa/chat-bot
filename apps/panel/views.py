@@ -459,7 +459,7 @@ class PanelRefreshSummaryView(LoginRequiredMixin, View):
             conversation.classification_confidence = confidence
         conversation.save(update_fields=['summary', 'classification', 'classification_confidence'])
         if is_ajax:
-            return JsonResponse({'ok': True})
+            return JsonResponse({'ok': True, 'summary': conversation.summary or ''})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -658,6 +658,10 @@ class SettingsView(LoginRequiredMixin, View):
         config.knowledge_base = request.POST.get('knowledge_base', '')
         config.greeting_message = request.POST.get('greeting_message', '')
         config.ai_globally_disabled = request.POST.get('ai_globally_disabled') == 'on'
+        try:
+            config.ai_auto_summary_interval = int(request.POST.get('ai_auto_summary_interval', 0))
+        except (ValueError, TypeError):
+            config.ai_auto_summary_interval = 0
         config.menu_enabled = request.POST.get('menu_enabled') == 'on'
         config.webhook_secret = request.POST.get('webhook_secret', '')
         config.whatsapp_phone_id = request.POST.get('whatsapp_phone_id', '')
@@ -702,7 +706,7 @@ class SettingsView(LoginRequiredMixin, View):
         config.save(update_fields=[
             'ai_model', 'system_prompt', 'temperature',
             'knowledge_base', 'greeting_message',
-            'ai_globally_disabled', 'menu_enabled', 'webhook_secret',
+            'ai_globally_disabled', 'ai_auto_summary_interval', 'menu_enabled', 'webhook_secret',
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_verify_token',
             'whatsapp_app_secret',
             'auto_assign_enabled', 'ai_max_messages', 'auto_close_hours',

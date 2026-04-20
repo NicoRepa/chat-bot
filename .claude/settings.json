@@ -5,7 +5,13 @@
       "Bash(python manage.py makemigrations core --name ai_globally_disabled)",
       "Bash(python manage.py migrate core)",
       "Bash(python manage.py makemigrations menu --name menu_level4)",
-      "Bash(python manage.py migrate menu)"
+      "Bash(python manage.py migrate menu)",
+      "Bash(python manage.py startapp appointments)",
+      "Bash(mv appointments *)",
+      "Bash(python manage.py makemigrations appointments --name initial)",
+      "Bash(python manage.py migrate appointments)",
+      "Bash(python manage.py makemigrations core --name auto_summary_interval)",
+      "Bash(python manage.py makemigrations core --name feature_appointments)"
     ]
   }
 }

@@ -25,6 +25,7 @@ urlpatterns = [
     path('api/webhooks/', include('apps.webhooks.urls')),
     path('api/whatsapp/webhook/', WhatsAppWebhookView.as_view(), name='whatsapp_webhook_direct'),
     path('panel/', include('apps.panel.urls')),
+    path('panel/citas/', include('apps.appointments.urls')),
 ]
 
 if settings.DEBUG:

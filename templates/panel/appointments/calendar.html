@@ -1,0 +1,597 @@
+{% extends "base.html" %}
+{% block title %}Calendario de Citas{% endblock %}
+{% block nav_appointments %}active{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet">
+<style>
+.appt-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 0;
+}
+.appt-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 20px;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+.appt-toolbar-title {
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.appt-toolbar-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+#calendar-wrap {
+    flex: 1;
+    overflow: auto;
+    padding: 16px 20px;
+}
+.fc {
+    height: 100%;
+    min-height: 500px;
+    font-family: inherit;
+}
+.fc .fc-toolbar-title { font-size: 15px; font-weight: 600; }
+.fc .fc-button {
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+}
+.fc .fc-button:hover { background: var(--border); }
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+.fc-daygrid-event { border-radius: 4px; font-size: 11px; }
+.fc-timegrid-event { border-radius: 4px; font-size: 11px; }
+.fc-day-today { background: var(--primary-bg) !important; }
+
+/* Legend */
+.legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+/* Modal */
+.modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    width: 100%;
+    max-width: 440px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+    position: relative;
+}
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 18px;
+}
+.modal-header h3 { font-size: 15px; font-weight: 700; margin: 0; }
+.modal-close { background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 18px; padding: 2px; }
+.modal-close:hover { color: var(--text-primary); }
+.form-row { display: flex; gap: 10px; }
+.form-row .form-group { flex: 1; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; }
+.form-group input, .form-group select, .form-group textarea {
+    width: 100%; padding: 8px 10px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); font-size: 13px; color: var(--text-primary);
+    font-family: inherit; box-sizing: border-box;
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-bg);
+}
+.form-group textarea { min-height: 70px; resize: vertical; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+.status-badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 10px; border-radius: var(--radius-full);
+    font-size: 11px; font-weight: 600;
+}
+.status-scheduled { background: #EFF6FF; color: #3B82F6; }
+.status-confirmed  { background: #ECFDF5; color: #10B981; }
+.status-cancelled  { background: #FEF2F2; color: #EF4444; }
+.status-completed  { background: #F3F4F6; color: #6B7280; }
+.status-no_show    { background: #FFFBEB; color: #F59E0B; }
+.slot-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+}
+.slot-btn {
+    padding: 6px 4px;
+    background: var(--primary-bg);
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    border-radius: var(--radius);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+    transition: .15s;
+}
+.slot-btn:hover, .slot-btn.selected { background: var(--primary); color: #fff; }
+.slot-date-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.slot-date-nav button { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 4px 8px; cursor: pointer; font-size: 12px; }
+.slot-date-nav span { flex: 1; text-align: center; font-weight: 600; font-size: 13px; }
+@media (max-width: 768px) {
+    .appt-toolbar { padding: 10px 12px; }
+    #calendar-wrap { padding: 8px 10px; }
+    .legend { gap: 8px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="appt-layout">
+    <div class="appt-toolbar">
+        <div class="appt-toolbar-title">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Calendario de {{ config.slot_name }}s
+        </div>
+        <div class="appt-toolbar-actions">
+            <div class="legend">
+                <div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Agendada</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>Confirmada</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#EF4444"></div>Bloqueado</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#6B7280"></div>Completada</div>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="openBlockModal()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                Bloquear día
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="openCreateModal()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Nueva {{ config.slot_name|lower }}
+            </button>
+            <a href="{% url 'appointments:config' %}" class="btn btn-ghost btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Configurar
+            </a>
+        </div>
+    </div>
+
+    <div id="calendar-wrap">
+        <div id="calendar"></div>
+    </div>
+</div>
+
+<!-- Modal: Ver/editar cita -->
+<div class="modal-overlay" id="modalAppt">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3 id="apptModalTitle">Detalle de {{ config.slot_name }}</h3>
+            <button class="modal-close" onclick="closeModal('modalAppt')">✕</button>
+        </div>
+        <div id="apptModalContent"></div>
+        <div class="modal-actions" id="apptModalActions"></div>
+    </div>
+</div>
+
+<!-- Modal: Crear nueva cita -->
+<div class="modal-overlay" id="modalCreate">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Nueva {{ config.slot_name }}</h3>
+            <button class="modal-close" onclick="closeModal('modalCreate')">✕</button>
+        </div>
+
+        <div class="form-group">
+            <label>Nombre del cliente *</label>
+            <input type="text" id="createName" placeholder="Juan García">
+        </div>
+        <div class="form-group">
+            <label>Teléfono</label>
+            <input type="text" id="createPhone" placeholder="+54 9 11 1234-5678">
+        </div>
+
+        <!-- Selector de fecha y slots -->
+        <div class="form-group">
+            <label>Fecha y horario *</label>
+            <div class="slot-date-nav">
+                <button type="button" onclick="shiftSlotDate(-1)">‹</button>
+                <span id="slotDateLabel">—</span>
+                <button type="button" onclick="shiftSlotDate(1)">›</button>
+            </div>
+            <div id="slotGrid" class="slot-grid">
+                <span style="color:var(--text-muted);font-size:12px;">Seleccioná una fecha</span>
+            </div>
+            <input type="hidden" id="createStart">
+        </div>
+
+        <div class="form-group">
+            <label>Notas</label>
+            <textarea id="createNotes" placeholder="Motivo de la cita, observaciones..."></textarea>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost btn-sm" onclick="closeModal('modalCreate')">Cancelar</button>
+            <button class="btn btn-primary btn-sm" onclick="submitCreate()">Agendar {{ config.slot_name }}</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Bloquear período -->
+<div class="modal-overlay" id="modalBlock">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h3>Bloquear fecha</h3>
+            <button class="modal-close" onclick="closeModal('modalBlock')">✕</button>
+        </div>
+        <div class="form-group">
+            <label>Fecha *</label>
+            <input type="date" id="blockDate">
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" id="blockFullDay" checked onchange="toggleBlockTime()">
+                Bloquear día completo
+            </label>
+        </div>
+        <div id="blockTimeFields" style="display:none;">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Desde</label>
+                    <input type="time" id="blockStart">
+                </div>
+                <div class="form-group">
+                    <label>Hasta</label>
+                    <input type="time" id="blockEnd">
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Motivo (opcional)</label>
+            <input type="text" id="blockReason" placeholder="Ej: Feriado, viaje, problema personal...">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost btn-sm" onclick="closeModal('modalBlock')">Cancelar</button>
+            <button class="btn btn-primary btn-sm" style="background:var(--error);border-color:var(--error);" onclick="submitBlock()">Bloquear</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+<script>
+var CSRF = '{{ csrf_token }}';
+var SLOT_NAME = '{{ config.slot_name }}';
+var calendar;
+
+// ── Helpers ──────────────────────────────────────────────
+function getCSRF() { return CSRF; }
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('open');
+}
+
+function openBlockModal(dateStr) {
+    var today = dateStr || new Date().toISOString().slice(0, 10);
+    document.getElementById('blockDate').value = today;
+    document.getElementById('blockFullDay').checked = true;
+    document.getElementById('blockTimeFields').style.display = 'none';
+    document.getElementById('blockReason').value = '';
+    document.getElementById('modalBlock').classList.add('open');
+}
+
+function toggleBlockTime() {
+    var full = document.getElementById('blockFullDay').checked;
+    document.getElementById('blockTimeFields').style.display = full ? 'none' : 'block';
+}
+
+function openCreateModal(dateStr) {
+    document.getElementById('createName').value = '';
+    document.getElementById('createPhone').value = '';
+    document.getElementById('createNotes').value = '';
+    document.getElementById('createStart').value = '';
+
+    var initDate = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+    window._slotCurrentDate = initDate;
+    renderSlotDate();
+    document.getElementById('modalCreate').classList.add('open');
+}
+
+// ── Slot picker ───────────────────────────────────────────
+function formatDateLabel(d) {
+    return d.toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long' });
+}
+
+function shiftSlotDate(delta) {
+    if (!window._slotCurrentDate) window._slotCurrentDate = new Date();
+    window._slotCurrentDate.setDate(window._slotCurrentDate.getDate() + delta);
+    document.getElementById('createStart').value = '';
+    renderSlotDate();
+}
+
+function renderSlotDate() {
+    var d = window._slotCurrentDate;
+    document.getElementById('slotDateLabel').textContent = formatDateLabel(d);
+    var dateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    loadSlots(dateStr);
+}
+
+function loadSlots(dateStr) {
+    var grid = document.getElementById('slotGrid');
+    grid.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">Cargando...</span>';
+    fetch('/panel/citas/api/slots/?date=' + dateStr, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.slots || data.slots.length === 0) {
+            grid.innerHTML = '<span style="color:var(--text-muted);font-size:12px;">Sin horarios disponibles</span>';
+            return;
+        }
+        var html = '';
+        data.slots.forEach(function(slot) {
+            html += '<button class="slot-btn" onclick="selectSlot(this, \'' + slot.start + '\')">' + slot.label + '</button>';
+        });
+        grid.innerHTML = html;
+    })
+    .catch(function() {
+        grid.innerHTML = '<span style="color:var(--error);font-size:12px;">Error al cargar horarios</span>';
+    });
+}
+
+function selectSlot(btn, startIso) {
+    document.querySelectorAll('.slot-btn').forEach(function(b) { b.classList.remove('selected'); });
+    btn.classList.add('selected');
+    document.getElementById('createStart').value = startIso;
+}
+
+// ── Submit create ─────────────────────────────────────────
+function submitCreate() {
+    var name = document.getElementById('createName').value.trim();
+    var phone = document.getElementById('createPhone').value.trim();
+    var start = document.getElementById('createStart').value;
+    var notes = document.getElementById('createNotes').value.trim();
+
+    if (!name) { alert('Ingresá el nombre del cliente.'); return; }
+    if (!start) { alert('Seleccioná un horario.'); return; }
+
+    fetch('/panel/citas/api/crear/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRF(),
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ contact_name: name, contact_phone: phone, start_datetime: start, notes: notes }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            closeModal('modalCreate');
+            calendar.refetchEvents();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo agendar'));
+        }
+    })
+    .catch(function() { alert('Error de conexión.'); });
+}
+
+// ── Submit block ──────────────────────────────────────────
+function submitBlock() {
+    var date = document.getElementById('blockDate').value;
+    var fullDay = document.getElementById('blockFullDay').checked;
+    var reason = document.getElementById('blockReason').value.trim();
+    var start = document.getElementById('blockStart').value;
+    var end = document.getElementById('blockEnd').value;
+
+    if (!date) { alert('Elegí una fecha.'); return; }
+    if (!fullDay && (!start || !end)) { alert('Ingresá el horario de inicio y fin.'); return; }
+
+    fetch('/panel/citas/api/bloquear/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRF(),
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ date: date, is_full_day: fullDay, start_time: start, end_time: end, reason: reason }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            closeModal('modalBlock');
+            calendar.refetchEvents();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo bloquear'));
+        }
+    })
+    .catch(function() { alert('Error de conexión.'); });
+}
+
+// ── Appointment detail modal ──────────────────────────────
+function openApptModal(apptId) {
+    fetch('/panel/citas/api/' + apptId + '/', {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        var statusClasses = {
+            scheduled: 'status-scheduled',
+            confirmed: 'status-confirmed',
+            cancelled: 'status-cancelled',
+            completed: 'status-completed',
+            no_show: 'status-no_show',
+        };
+        var content = `
+            <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span class="status-badge ${statusClasses[d.status] || ''}">${d.status_display}</span>
+                    ${d.created_by_ai ? '<span style="font-size:11px;color:var(--text-muted);">🤖 Creada por IA</span>' : ''}
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:13px;">
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Nombre</div>
+                        <div style="font-weight:600;" id="editName">${d.contact_name}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Teléfono</div>
+                        <div id="editPhone">${d.contact_phone || '—'}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Inicio</div>
+                        <div style="font-weight:600;">📅 ${d.start}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px;">Fin</div>
+                        <div>🕐 ${d.end}</div>
+                    </div>
+                </div>
+                ${d.notes ? `<div style="background:var(--bg-hover);padding:8px 10px;border-radius:var(--radius);font-size:12px;color:var(--text-secondary);">📝 ${d.notes}</div>` : ''}
+                ${d.conversation_id ? `<a href="/panel/conversaciones/${d.conversation_id}/" style="font-size:12px;color:var(--primary);">Ver conversación →</a>` : ''}
+            </div>`;
+        document.getElementById('apptModalContent').innerHTML = content;
+
+        var actions = '';
+        if (d.status === 'scheduled') {
+            actions += `<button class="btn btn-primary btn-sm" onclick="apptAction('${d.id}','confirm')">✔ Confirmar</button>`;
+            actions += `<button class="btn btn-outline btn-sm" onclick="apptAction('${d.id}','cancel')">✕ Cancelar</button>`;
+        } else if (d.status === 'confirmed') {
+            actions += `<button class="btn btn-primary btn-sm" onclick="apptAction('${d.id}','complete')">✔ Completada</button>`;
+            actions += `<button class="btn btn-outline btn-sm" onclick="apptAction('${d.id}','no_show')">👤 No se presentó</button>`;
+            actions += `<button class="btn btn-ghost btn-sm" onclick="apptAction('${d.id}','cancel')">✕ Cancelar</button>`;
+        }
+        document.getElementById('apptModalActions').innerHTML = actions;
+        document.getElementById('modalAppt').classList.add('open');
+    });
+}
+
+function apptAction(id, action) {
+    fetch('/panel/citas/api/' + id + '/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCSRF(),
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: JSON.stringify({ action: action }),
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            closeModal('modalAppt');
+            calendar.refetchEvents();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo actualizar'));
+        }
+    });
+}
+
+function deleteBlock(blockId) {
+    if (!confirm('¿Eliminar este bloqueo?')) return;
+    fetch('/panel/citas/api/desbloquear/' + blockId + '/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCSRF(), 'X-Requested-With': 'XMLHttpRequest' },
+        body: '{}',
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            closeModal('modalAppt');
+            calendar.refetchEvents();
+        }
+    });
+}
+
+// ── FullCalendar init ─────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+    var el = document.getElementById('calendar');
+    calendar = new FullCalendar.Calendar(el, {
+        locale: 'es',
+        initialView: 'dayGridMonth',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
+        },
+        buttonText: {
+            today: 'Hoy',
+            month: 'Mes',
+            week: 'Semana',
+            day: 'Día',
+            list: 'Lista',
+        },
+        height: '100%',
+        firstDay: 1,
+        navLinks: true,
+        selectable: true,
+        editable: false,
+        dayMaxEvents: 4,
+        events: {
+            url: '/panel/citas/api/eventos/',
+            method: 'GET',
+            extraParams: function() { return {}; },
+            failure: function() { console.warn('Error cargando eventos del calendario.'); },
+        },
+        eventClick: function(info) {
+            var props = info.event.extendedProps;
+            if (props.block_id) {
+                if (confirm('¿Eliminar este bloqueo?')) {
+                    deleteBlock(props.block_id);
+                }
+            } else {
+                openApptModal(info.event.id);
+            }
+        },
+        dateClick: function(info) {
+            openCreateModal(info.dateStr);
+        },
+        select: function(info) {
+            openCreateModal(info.startStr);
+        },
+        eventDidMount: function(info) {
+            info.el.title = info.event.title;
+        },
+        noEventsContent: 'Sin citas',
+    });
+    calendar.render();
+});
+
+// Cerrar modal al hacer click en overlay
+document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
+    overlay.addEventListener('click', function(e) {
+        if (e.target === this) this.classList.remove('open');
+    });
+});
+</script>
+{% endblock %}

@@ -400,6 +400,13 @@
                 </div>
 
                 <div class="form-group">
+                    <label class="form-label">Auto-resumen de IA cada N mensajes</label>
+                    <input type="number" name="ai_auto_summary_interval" class="form-input"
+                        value="{{ config.ai_auto_summary_interval }}" min="0" max="500" style="width:100px;">
+                    <p class="form-hint">La IA regenera el resumen automáticamente cada N mensajes del cliente. 0 = desactivado.</p>
+                </div>
+
+                <div class="form-group">
                     <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
                         <input type="checkbox" name="menu_enabled" {% if config.menu_enabled %}checked{% endif %}
                             style="width: 16px; height: 16px;">

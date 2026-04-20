@@ -25,11 +25,20 @@ class BusinessConfigInline(admin.StackedInline):
 
 @admin.register(Business)
 class BusinessAdmin(admin.ModelAdmin):
-    list_display = ('name', 'industry', 'is_active', 'created_at')
-    list_filter = ('is_active', 'industry')
+    list_display = ('name', 'industry', 'is_active', 'feature_appointments', 'created_at')
+    list_filter = ('is_active', 'feature_appointments', 'industry')
     search_fields = ('name', 'industry')
     prepopulated_fields = {'slug': ('name',)}
     inlines = [BusinessConfigInline]
+    fieldsets = (
+        ('Datos del negocio', {
+            'fields': ('name', 'slug', 'industry', 'description', 'address', 'phone', 'email', 'contact_info')
+        }),
+        ('Estado y módulos', {
+            'fields': ('is_active', 'feature_appointments'),
+            'description': 'Activá solo los módulos que el cliente haya contratado.',
+        }),
+    )
 
     def save_related(self, request, form, formsets, change):
         super().save_related(request, form, formsets, change)

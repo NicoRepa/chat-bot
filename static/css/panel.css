@@ -1354,6 +1354,40 @@ body.in-conversation .main-content {
         border-radius: 20px;
     }
 
+    /* Input area siempre pegada al fondo */
+    .chat-input-area {
+        flex-shrink: 0;
+    }
+
+    /* Botones adjuntar y micrófono más compactos */
+    #attach-btn, #mic-btn {
+        padding: 6px !important;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Preview de archivo más compacto */
+    #file-preview-area {
+        font-size: 11px;
+        padding: 4px 8px;
+    }
+
+    /* Ocultar texto de botones de acción de mensajes IA */
+    .ai-feedback-actions .btn-icon {
+        font-size: 14px;
+    }
+
+    /* Chat messages se estira para ocupar el espacio restante */
+    .chat-messages {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
     /* Send button more touch-friendly */
     #send-btn {
         padding: 9px 16px;
@@ -1481,6 +1515,32 @@ body.in-conversation .main-content {
 
     .specialization-grid {
         grid-template-columns: 1fr !important;
+    }
+
+    /* Chat en pantallas muy pequeñas */
+    .chat-header {
+        padding: 6px 8px;
+        min-height: 48px;
+    }
+
+    .contact-name {
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 130px;
+    }
+
+    .contact-meta {
+        font-size: 10px;
+    }
+
+    #send-btn span {
+        display: none;
+    }
+
+    .chat-input {
+        font-size: 14px;
     }
 }
 

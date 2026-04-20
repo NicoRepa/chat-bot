@@ -25,6 +25,11 @@ class Business(models.Model):
         help_text='Datos extra: horarios, redes sociales, etc.'
     )
     is_active = models.BooleanField('Activo', default=True)
+    feature_appointments = models.BooleanField(
+        'Módulo de citas habilitado',
+        default=False,
+        help_text='Habilita el sistema de citas online (calendario, reservas por IA). Solo activar si el cliente contrató este módulo.'
+    )
     created_at = models.DateTimeField('Fecha de creación', auto_now_add=True)
     updated_at = models.DateTimeField('Última actualización', auto_now=True)
 
@@ -110,6 +115,11 @@ class BusinessConfig(models.Model):
         'Desactivar IA globalmente',
         default=False,
         help_text='Si está activo, la IA no responde automáticamente. Solo funciona el menú interactivo y la atención humana.'
+    )
+    ai_auto_summary_interval = models.IntegerField(
+        'Auto-resumen cada N mensajes',
+        default=0,
+        help_text='La IA regenera el resumen automáticamente cada N mensajes recibidos. 0 = desactivado.'
     )
 
     # Webhook

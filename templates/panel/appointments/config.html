@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% load appointment_extras %}
+{% block title %}Configuración de Citas{% endblock %}
+{% block nav_appointments %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+.config-header { display:flex; align-items:center; gap:12px; margin-bottom:24px; }
+.config-header h1 { font-size:18px; font-weight:700; margin:0; }
+.section-card { background:var(--bg-card); border-radius:var(--radius-lg); border:1px solid var(--border); padding:20px; margin-bottom:20px; }
+.section-card h2 { font-size:14px; font-weight:700; margin:0 0 16px; color:var(--text-primary); display:flex; align-items:center; gap:8px; }
+.form-grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.form-group { margin-bottom:14px; }
+.form-group label { display:block; font-size:12px; font-weight:600; color:var(--text-secondary); margin-bottom:5px; }
+.form-input, .form-select, .form-textarea {
+    width:100%; padding:9px 11px;
+    background:var(--bg-input); border:1px solid var(--border);
+    border-radius:var(--radius); font-size:13px; color:var(--text-primary);
+    font-family:inherit; box-sizing:border-box;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline:none; border-color:var(--primary);
+    box-shadow:0 0 0 3px var(--primary-bg);
+}
+.form-textarea { min-height:80px; resize:vertical; }
+.form-hint { font-size:11px; color:var(--text-muted); margin-top:3px; }
+.toggle-row { display:flex; align-items:center; gap:10px; padding:10px 0; }
+.toggle-row label { font-size:13px; color:var(--text-primary); font-weight:500; cursor:pointer; }
+.toggle-row input[type=checkbox] { width:16px; height:16px; cursor:pointer; }
+
+/* Schedule grid */
+.schedule-table { width:100%; border-collapse:collapse; }
+.schedule-table th {
+    font-size:11px; font-weight:700; color:var(--text-muted);
+    text-align:left; padding:6px 8px; border-bottom:1px solid var(--border);
+    text-transform:uppercase; letter-spacing:.05em;
+}
+.schedule-table td { padding:6px 8px; vertical-align:middle; border-bottom:1px solid var(--border-light); }
+.schedule-table tr:last-child td { border-bottom:none; }
+.day-label { font-size:13px; font-weight:600; min-width:90px; }
+.time-input { padding:6px 8px; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:12px; color:var(--text-primary); width:90px; }
+.time-input:focus { outline:none; border-color:var(--primary); }
+.range-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+.range-separator { font-size:12px; color:var(--text-muted); }
+.add-range-btn { font-size:11px; color:var(--primary); background:none; border:none; cursor:pointer; padding:2px 4px; }
+.add-range-btn:hover { text-decoration:underline; }
+.remove-range-btn { font-size:14px; color:var(--error); background:none; border:none; cursor:pointer; padding:0 4px; line-height:1; }
+.remove-range-btn:hover { opacity:.7; }
+
+/* Alerts */
+.alert-success {
+    background:var(--success-bg); color:var(--success);
+    border:1px solid var(--success); border-radius:var(--radius);
+    padding:10px 14px; font-size:13px; font-weight:600; margin-bottom:16px;
+}
+@media (max-width:600px) {
+    .form-grid-2 { grid-template-columns:1fr; }
+    .schedule-table th, .schedule-table td { padding:4px; }
+    .time-input { width:75px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="max-width:860px; margin:0 auto; padding:20px;">
+    {% if saved %}
+    <div class="alert-success">✅ Configuración guardada correctamente.</div>
+    {% endif %}
+
+    <div class="config-header">
+        <a href="{% url 'appointments:calendar' %}" class="btn btn-ghost btn-sm">← Volver</a>
+        <div>
+            <h1>Configuración de Citas</h1>
+            <p style="font-size:12px;color:var(--text-muted);margin:2px 0 0;">Personalizá cómo funciona el sistema de turnos para {{ business.name }}.</p>
+        </div>
+    </div>
+
+    <form method="post" action="{% url 'appointments:config' %}">
+        {% csrf_token %}
+
+        <!-- General -->
+        <div class="section-card">
+            <h2>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                General
+            </h2>
+
+            <div class="toggle-row">
+                <input type="checkbox" name="is_enabled" id="is_enabled" {% if config.is_enabled %}checked{% endif %}>
+                <label for="is_enabled">Sistema de citas activo (la IA puede agendar turnos automáticamente)</label>
+            </div>
+
+            <div class="form-grid-2" style="margin-top:14px;">
+                <div class="form-group">
+                    <label>Nombre del turno</label>
+                    <input type="text" name="slot_name" class="form-input" value="{{ config.slot_name }}" placeholder="Cita">
+                    <p class="form-hint">Ej: Cita, Turno, Consulta, Reunión. Se usa en todos los mensajes.</p>
+                </div>
+                <div class="form-group">
+                    <label>Duración por turno (minutos)</label>
+                    <input type="number" name="appointment_duration" class="form-input" value="{{ config.appointment_duration }}" min="5" max="480">
+                    <p class="form-hint">Cuánto dura cada turno.</p>
+                </div>
+                <div class="form-group">
+                    <label>Tiempo entre turnos (minutos)</label>
+                    <input type="number" name="buffer_time" class="form-input" value="{{ config.buffer_time }}" min="0" max="120">
+                    <p class="form-hint">Tiempo de pausa entre un turno y el siguiente. 0 = sin pausa.</p>
+                </div>
+                <div class="form-group">
+                    <label>Turnos simultáneos por horario</label>
+                    <input type="number" name="max_concurrent" class="form-input" value="{{ config.max_concurrent }}" min="1" max="50">
+                    <p class="form-hint">Cuántos clientes pueden tener turno al mismo horario. 1 = solo uno por vez.</p>
+                </div>
+                <div class="form-group">
+                    <label>Máximo de turnos por día</label>
+                    <input type="number" name="max_per_day" class="form-input" value="{{ config.max_per_day }}" min="0">
+                    <p class="form-hint">0 = sin límite diario.</p>
+                </div>
+                <div class="form-group">
+                    <label>Días de anticipación máxima</label>
+                    <input type="number" name="advance_booking_days" class="form-input" value="{{ config.advance_booking_days }}" min="1" max="365">
+                    <p class="form-hint">Con cuántos días de anticipación se puede reservar.</p>
+                </div>
+                <div class="form-group">
+                    <label>Anticipación mínima (horas)</label>
+                    <input type="number" name="min_advance_hours" class="form-input" value="{{ config.min_advance_hours }}" min="0" max="168">
+                    <p class="form-hint">Mínimo de horas antes del turno para poder reservarlo.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Horario semanal -->
+        <div class="section-card">
+            <h2>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                Horarios disponibles semanales
+            </h2>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Configurá los horarios de atención para cada día. Podés agregar múltiples franjas por día (ej: mañana y tarde).</p>
+            <table class="schedule-table">
+                <thead>
+                    <tr>
+                        <th>Día</th>
+                        <th>Franjas horarias</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day_num, day_name in days_meta %}
+                    <tr>
+                        <td class="day-label">{{ day_name }}</td>
+                        <td>
+                            <div id="ranges-{{ day_num }}">
+                                {% for s in schedule_by_day|get_item:day_num %}
+                                <div class="range-row" data-day="{{ day_num }}">
+                                    <input type="time" name="day_{{ day_num }}_start" class="time-input" value="{{ s.start_time|time:'H:i' }}" required>
+                                    <span class="range-separator">a</span>
+                                    <input type="time" name="day_{{ day_num }}_end" class="time-input" value="{{ s.end_time|time:'H:i' }}" required>
+                                    <input type="hidden" name="day_{{ day_num }}_active" value="{{ forloop.counter0 }}">
+                                    <button type="button" class="remove-range-btn" onclick="removeRange(this)">✕</button>
+                                </div>
+                                {% empty %}
+                                <span style="font-size:12px;color:var(--text-muted);">Sin horario</span>
+                                {% endfor %}
+                            </div>
+                            <button type="button" class="add-range-btn" onclick="addRange({{ day_num }})">+ Agregar franja</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mensajes -->
+        <div class="section-card">
+            <h2>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                Mensajes automáticos
+            </h2>
+            <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">
+                Variables disponibles: <code>{slot_name}</code>, <code>{date}</code>, <code>{time}</code>, <code>{name}</code>
+            </p>
+            <div class="form-group">
+                <label>Mensaje de confirmación</label>
+                <textarea name="confirmation_message" class="form-textarea">{{ config.confirmation_message }}</textarea>
+                <p class="form-hint">Se envía al cliente cuando se confirma un turno.</p>
+            </div>
+            <div class="form-group">
+                <label>Mensaje de cancelación</label>
+                <textarea name="cancellation_message" class="form-textarea">{{ config.cancellation_message }}</textarea>
+                <p class="form-hint">Se envía al cliente cuando se cancela un turno.</p>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;padding-bottom:30px;">
+            <a href="{% url 'appointments:calendar' %}" class="btn btn-ghost">Cancelar</a>
+            <button type="submit" class="btn btn-primary">Guardar configuración</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addRange(day) {
+    var container = document.getElementById('ranges-' + day);
+    // Remove "Sin horario" placeholder if present
+    container.querySelectorAll('span').forEach(function(s) { s.remove(); });
+
+    var idx = container.querySelectorAll('.range-row').length;
+    var div = document.createElement('div');
+    div.className = 'range-row';
+    div.dataset.day = day;
+    div.innerHTML = `
+        <input type="time" name="day_${day}_start" class="time-input" value="09:00" required>
+        <span class="range-separator">a</span>
+        <input type="time" name="day_${day}_end" class="time-input" value="18:00" required>
+        <input type="hidden" name="day_${day}_active" value="${idx}">
+        <button type="button" class="remove-range-btn" onclick="removeRange(this)">✕</button>`;
+    container.appendChild(div);
+}
+
+function removeRange(btn) {
+    var row = btn.closest('.range-row');
+    var container = row.parentElement;
+    row.remove();
+    if (container.querySelectorAll('.range-row').length === 0) {
+        container.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Sin horario</span>';
+    }
+}
+</script>
+{% endblock %}
