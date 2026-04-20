@@ -239,6 +239,14 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
                     Etiquetas (Tags)
                 </a>
+                <a class="settings-nav-link" data-section="usage" onclick="showSection('usage')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="20" x2="18" y2="10"></line>
+                        <line x1="12" y1="20" x2="12" y2="4"></line>
+                        <line x1="6" y1="20" x2="6" y2="14"></line>
+                    </svg>
+                    Uso y Estadísticas
+                </a>
             </nav>
         </div>
     </div>
@@ -276,6 +284,35 @@
                     <label class="form-label">Email</label>
                     <input type="email" name="email" class="form-input" value="{{ business.email }}"
                         placeholder="contacto@negocio.com">
+                </div>
+            </div>
+        </div>
+
+        <!-- Uso y Estadísticas (PRO) -->
+        <div id="section-usage" class="settings-section">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                <div class="card" style="text-align: center; padding: 24px;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 8px;">Tokens Consumidos</div>
+                    <div style="font-size: 28px; font-weight: 700; color: var(--primary);">{{ usage_stats.total_tokens|default:0|floatformat:0 }}</div>
+                </div>
+                <div class="card" style="text-align: center; padding: 24px;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 8px;">Costo Estimado (USD)</div>
+                    <div style="font-size: 28px; font-weight: 700; color: #10B981;">${{ usage_stats.total_cost|default:0|floatformat:4 }}</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Información de Facturación</h3>
+                <p style="font-size: 13px; color: var(--text-secondary); line-height: 1.5;">
+                    Estos valores son estimaciones basadas en el consumo de tokens de los modelos de OpenAI (GPT-4o Mini / GPT-4o).
+                    Los costos se calculan en base a los precios oficiales de la API de cada modelo.
+                </p>
+                <div style="margin-top: 16px; padding: 12px; background: var(--bg-hover); border-radius: var(--radius); border: 1px dashed var(--border);">
+                    <div style="font-size: 12px; color: var(--text-primary); font-weight: 600; margin-bottom: 4px;">Optimizador de Costos</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">
+                        Actualmente estás usando el modelo <strong>{{ config.ai_model }}</strong>. 
+                        El modelo Mini es hasta 20 veces más económico manteniendo una excelente calidad.
+                    </div>
                 </div>
             </div>
         </div>
@@ -533,6 +570,14 @@
                     </label>
                     <p class="form-hint">Si está activo, no se auto-asignan conversaciones y todos los usuarios ven
                         todas las conversaciones. Ideal para empresas sin agentes.</p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" name="ai_feedback_enabled" {% if config.ai_feedback_enabled %}checked{% endif %} style="width: 16px; height: 16px;">
+                        Habilitar feedback de respuestas IA (👍 / 👎)
+                    </label>
+                    <p class="form-hint">Permite a admins y supervisores valorar las respuestas generadas por la IA para mejorar el modelo.</p>
                 </div>
 
                 <div class="form-group">

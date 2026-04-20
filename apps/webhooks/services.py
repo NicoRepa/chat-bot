@@ -85,11 +85,41 @@ class ChatOrchestrator:
                 if last_date < now.date():
                     conversation.menu_state = 'initial'
 
+        # 2.5 Detección de Audio y Transcripción (PRO)
+        audio_url = (metadata or {}).get('media_url') if metadata else None
+        is_audio = (metadata or {}).get('media_type') == 'audio' if metadata else False
+        transcription_usage = {'tokens': 0, 'cost': 0.0}
+
+        if is_audio and audio_url:
+            logger.info(f"Procesando nota de voz de {contact.external_id}...")
+            transcribed_text, transcription_usage = ai_service.transcribe_audio(audio_url)
+            if transcribed_text:
+                message_text = f"🎤 [Nota de voz]: {transcribed_text}"
+                logger.info(f"Transcripción exitosa: {transcribed_text}")
+            else:
+                message_text = "[Nota de voz sin transcripción]"
+
+        # 2.6 Detección de Opt-out (Anti-Ban)
+        opt_out_keywords = ['STOP', 'QUIT', 'CANCELAR', 'BAJA', 'UNSUBSCRIBE', 'DEJAR DE RECIBIR', 'REMOVER']
+        clean_text = message_text.upper().strip()
+        if any(kw in clean_text for kw in opt_out_keywords) and len(clean_text) < 20:
+            conversation.status = 'finalizada'
+            conversation.is_ai_active = False
+            conversation.save(update_fields=['status', 'is_ai_active', 'updated_at'])
+            logger.info(f"Usuario {contact.external_id} solicitó baja. IA desactivada.")
+            return {
+                'response': "Entendido. No volveremos a enviarte mensajes automáticos. Si necesitas algo, un agente humano revisará esta charla.",
+                'conversation_id': str(conversation.id),
+                'status': 'opted_out'
+            }
+
         # 3. Guardar mensaje del usuario
         Message.objects.create(
             conversation=conversation,
             role='user',
             content=message_text,
+            tokens_used=transcription_usage.get('tokens', 0),
+            ai_cost=transcription_usage.get('cost', 0.0),
             metadata=metadata or {}
         )
 
@@ -111,7 +141,7 @@ class ChatOrchestrator:
             
         threading.Thread(target=_send_push_async, daemon=True).start()
 
-        # 4. Si la IA no está activa, no responder automáticamente
+        # 4. Si la IA no está activa o si el usuario pidió baja (ya manejado arriba)
         if not conversation.is_ai_active:
             conversation.save(update_fields=['panel_unread_count', 'updated_at'])
             return {

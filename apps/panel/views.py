@@ -7,7 +7,7 @@ import json
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views import View
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
@@ -270,25 +270,32 @@ class PanelReplyView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conversation = get_object_or_404(Conversation, pk=conversation_id)
         message_text = request.POST.get('message', '').strip()
         media_file = request.FILES.get('media_file')
-        
+
         if not message_text and not media_file:
+            if is_ajax:
+                return JsonResponse({'ok': False, 'error': 'Mensaje vacío'}, status=400)
             return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
         # Verificar permisos: agentes solo pueden responder sus propios chats
         if _user_is_agent_only(request.user):
             if conversation.assigned_to and conversation.assigned_to != request.user:
+                if is_ajax:
+                    return JsonResponse({'ok': False, 'error': 'Sin permisos'}, status=403)
                 return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
         ChatOrchestrator.send_agent_reply(conversation, message_text, media_file=media_file)
-        
+
         # Reset SLA timer since a human has responded
         if conversation.human_needed_at:
             conversation.human_needed_at = None
             conversation.save(update_fields=['human_needed_at'])
-            
+
+        if is_ajax:
+            return JsonResponse({'ok': True})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -297,25 +304,21 @@ class PanelToggleAIView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conversation = get_object_or_404(Conversation, pk=conversation_id)
         if conversation.is_ai_active:
-            # Tomar control: Desactivar IA y asignar si no tiene a quien lo tomó
             ChatOrchestrator.takeover_conversation(conversation)
-            
-            # Auto-assign if unassigned
             if not conversation.assigned_to:
                 conversation.assigned_to = request.user
-            
-            # Set human needed at if not set
             if not conversation.human_needed_at:
                 conversation.human_needed_at = timezone.now()
-            
             conversation.save(update_fields=['assigned_to', 'human_needed_at'])
         else:
             ChatOrchestrator.activate_ai(conversation)
             conversation.human_needed_at = None
             conversation.save(update_fields=['human_needed_at'])
-            
+        if is_ajax:
+            return JsonResponse({'ok': True})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -324,17 +327,17 @@ class PanelAssignAgentView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conversation = get_object_or_404(Conversation, pk=conversation_id)
         agent_id = request.POST.get('agent_id')
-        
         if agent_id:
             agent = get_object_or_404(User, pk=agent_id)
             conversation.assigned_to = agent
         else:
-            # Unassign
             conversation.assigned_to = None
-            
         conversation.save(update_fields=['assigned_to'])
+        if is_ajax:
+            return JsonResponse({'ok': True})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -343,19 +346,19 @@ class PanelUpdateStatusView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conversation = get_object_or_404(Conversation, pk=conversation_id)
         new_status = request.POST.get('status', '')
         valid_statuses = [s[0] for s in Conversation.STATUS_CHOICES]
         if new_status in valid_statuses:
             conversation.status = new_status
-            
-            # Reset SLA if finalized
             if new_status == 'finalizada' and conversation.human_needed_at:
                 conversation.human_needed_at = None
                 conversation.save(update_fields=['status', 'human_needed_at'])
             else:
                 conversation.save(update_fields=['status'])
-                
+        if is_ajax:
+            return JsonResponse({'ok': True})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -364,11 +367,14 @@ class PanelUpdateClassificationView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conversation = get_object_or_404(Conversation, pk=conversation_id)
         new_classification = request.POST.get('classification', '')
         if new_classification:
             conversation.classification = new_classification
             conversation.save(update_fields=['classification'])
+        if is_ajax:
+            return JsonResponse({'ok': True})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -377,6 +383,7 @@ class PanelToggleTagView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conversation = get_object_or_404(Conversation, pk=conversation_id)
         tag_id = request.POST.get('tag_id')
         if tag_id:
@@ -385,6 +392,8 @@ class PanelToggleTagView(LoginRequiredMixin, View):
                 conversation.tags.remove(tag)
             else:
                 conversation.tags.add(tag)
+        if is_ajax:
+            return JsonResponse({'ok': True})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -393,6 +402,7 @@ class PanelResendMenuView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conversation = get_object_or_404(
             Conversation.objects.select_related('business'),
             pk=conversation_id
@@ -429,6 +439,8 @@ class PanelResendMenuView(LoginRequiredMixin, View):
             conversation.is_ai_active = True
             conversation.save(update_fields=['menu_state', 'is_ai_active'])
 
+        if is_ajax:
+            return JsonResponse({'ok': True})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -437,6 +449,7 @@ class PanelRefreshSummaryView(LoginRequiredMixin, View):
     login_url = '/admin/login/'
 
     def post(self, request, conversation_id):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         conversation = get_object_or_404(Conversation, pk=conversation_id)
         classification, confidence, summary, _usage = ai_service.classify_conversation(conversation)
         if summary:
@@ -445,6 +458,8 @@ class PanelRefreshSummaryView(LoginRequiredMixin, View):
             conversation.classification = classification
             conversation.classification_confidence = confidence
         conversation.save(update_fields=['summary', 'classification', 'classification_confidence'])
+        if is_ajax:
+            return JsonResponse({'ok': True})
         return redirect('panel:conversation_detail', conversation_id=conversation_id)
 
 
@@ -598,10 +613,20 @@ class SettingsView(LoginRequiredMixin, View):
             from apps.core.schedule_utils import DEFAULT_SCHEDULE
             config.business_hours = DEFAULT_SCHEDULE
 
+        # Estadísticas de uso (PRO)
+        from apps.conversations.models import Message
+        usage_stats = Message.objects.filter(
+            conversation__business=business
+        ).aggregate(
+            total_tokens=Sum('tokens_used'),
+            total_cost=Sum('ai_cost')
+        )
+
         context = {
             'business': business,
             'config': config,
             'saved': request.GET.get('saved', '') == '1',
+            'usage_stats': usage_stats,
         }
         return render(request, 'panel/settings.html', context)
 
@@ -648,6 +673,7 @@ class SettingsView(LoginRequiredMixin, View):
             config.auto_close_hours = 0
         config.agent_visibility_mode = request.POST.get('agent_visibility_mode', 'all')
         config.supervisor_only_mode = request.POST.get('supervisor_only_mode') == 'on'
+        config.ai_feedback_enabled = request.POST.get('ai_feedback_enabled') == 'on'
         config.menu_force_selection = request.POST.get('menu_force_selection') == 'on'
         config.menu_reactivation_message = request.POST.get('menu_reactivation_message', '')
         config.welcome_back_message = request.POST.get('welcome_back_message', '')
@@ -675,7 +701,7 @@ class SettingsView(LoginRequiredMixin, View):
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_verify_token',
             'whatsapp_app_secret',
             'auto_assign_enabled', 'ai_max_messages', 'auto_close_hours',
-            'agent_visibility_mode', 'supervisor_only_mode',
+            'agent_visibility_mode', 'supervisor_only_mode', 'ai_feedback_enabled',
             'menu_force_selection', 'menu_reactivation_message',
             'welcome_back_message', 'escalation_message', 'out_of_hours_message',
             'business_hours', 'business_hours_enabled',

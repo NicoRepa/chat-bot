@@ -13,10 +13,15 @@ from .serializers import serialize_message, serialize_conversation_snapshot
 
 logger = logging.getLogger(__name__)
 
-# Campos de Conversation que disparan un broadcast al cambiar
+# Campos de Conversation que disparan un broadcast al cambiar.
+# Incluir tanto 'assigned_to' como 'assigned_to_id' porque Django puede pasar
+# cualquiera de los dos en update_fields dependiendo de cómo se llame .save().
 _CONV_TRACKED_FIELDS = {
-    'status', 'is_ai_active', 'assigned_to_id',
-    'classification', 'summary', 'panel_unread_count', 'updated_at',
+    'status', 'is_ai_active',
+    'assigned_to', 'assigned_to_id',
+    'classification', 'summary',
+    'panel_unread_count', 'updated_at',
+    'human_needed_at',
 }
 
 
@@ -55,7 +60,7 @@ def on_message_created(sender, instance, created, **kwargs):
         'type': 'inbox.update',
         'kind': 'update',
         'conversation': serialize_conversation_snapshot(conv),
-        'total_unread': conv.business.conversations.filter(status='open').sum_panel_unread(),
+        'total_unread': Conversation.objects.filter(business=conv.business).sum_panel_unread(),
     }
     _safe_broadcast(
         InboxConsumer.broadcast_to_business,
@@ -75,7 +80,7 @@ def on_conversation_updated(sender, instance, created, **kwargs):
             'type': 'inbox.update',
             'kind': 'new',
             'conversation': serialize_conversation_snapshot(conv),
-            'total_unread': conv.business.conversations.filter(status='open').sum_panel_unread(),
+            'total_unread': Conversation.objects.filter(business=conv.business).sum_panel_unread(),
         }
         _safe_broadcast(
             InboxConsumer.broadcast_to_business,
@@ -109,7 +114,7 @@ def on_conversation_updated(sender, instance, created, **kwargs):
         'type': 'inbox.update',
         'kind': 'update',
         'conversation': snapshot,
-        'total_unread': conv.business.conversations.filter(status='open').sum_panel_unread(),
+        'total_unread': Conversation.objects.filter(business=conv.business).sum_panel_unread(),
     }
     _safe_broadcast(
         InboxConsumer.broadcast_to_business,
@@ -129,7 +134,7 @@ def on_conversation_deleted(sender, instance, **kwargs):
         'conversation': {
             'id': str(conv.id),
         },
-        'total_unread': conv.business.conversations.filter(status='open').sum_panel_unread(),
+        'total_unread': Conversation.objects.filter(business=conv.business).sum_panel_unread(),
     }
     _safe_broadcast(
         InboxConsumer.broadcast_to_business,

@@ -19,17 +19,9 @@ class WhatsAppService:
     @staticmethod
     def send_text_message(phone_number_id, access_token, recipient, text):
         """
-        Envía un mensaje de texto a un número de WhatsApp.
-
-        Args:
-            phone_number_id: Phone Number ID de Meta
-            access_token: Token de acceso de la Cloud API
-            recipient: Número de teléfono del destinatario (formato internacional sin +)
-            text: Texto del mensaje
-
-        Returns:
-            dict con la respuesta de la API o None si falla
+        Envía un mensaje de texto a un número de WhatsApp con reintentos.
         """
+        import time
         url = f'{GRAPH_API_URL}/{phone_number_id}/messages'
         headers = {
             'Authorization': f'Bearer {access_token}',
@@ -46,20 +38,23 @@ class WhatsAppService:
             }
         }
 
-        try:
-            response = requests.post(url, headers=headers, json=payload, timeout=30)
-            response.raise_for_status()
-            result = response.json()
-            logger.info(f'Mensaje WhatsApp enviado a {recipient}: {result}')
-            return result
-        except requests.exceptions.RequestException as e:
-            logger.error(f'Error enviando mensaje WhatsApp a {recipient}: {e}')
-            if hasattr(e, 'response') and e.response is not None:
-                try:
-                    logger.error(f'Respuesta de Meta: {e.response.text}')
-                except Exception:
-                    pass
-            return None
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, headers=headers, json=payload, timeout=30)
+                response.raise_for_status()
+                result = response.json()
+                logger.info(f'Mensaje WhatsApp enviado a {recipient} (intento {attempt+1}): {result}')
+                return result
+            except requests.exceptions.RequestException as e:
+                logger.error(f'Error enviando mensaje WhatsApp (intento {attempt+1}): {e}')
+                if attempt < max_retries - 1:
+                    wait_time = (attempt + 1) * 2  # 2s, 4s, 6s...
+                    time.sleep(wait_time)
+                else:
+                    if hasattr(e, 'response') and e.response is not None:
+                        logger.error(f'Respuesta final de Meta: {e.response.text}')
+                    return None
 
     @staticmethod
     def send_media_message(phone_number_id, access_token, recipient, media_url, media_type, caption=None, is_voice_note=False):

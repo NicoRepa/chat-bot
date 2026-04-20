@@ -100,8 +100,9 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
-        # Marcar como leída al conectar
+        # Marcar como leída al conectar y notificar al inbox
         await self._mark_read()
+        await self._notify_read()
 
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
@@ -111,6 +112,7 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         action = content.get('action', '')
         if action == 'mark_read':
             await self._mark_read()
+            await self._notify_read()
         elif action == 'ping':
             await self.send_json({'type': 'pong'})
 
@@ -148,6 +150,32 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
             ).update(panel_unread_count=0)
         except Exception as exc:
             logger.warning('Error marking conversation as read: %s', exc)
+
+    @database_sync_to_async
+    def _get_snapshot_and_total(self):
+        """Devuelve (snapshot, business_id_str, total_unread) para notificar al inbox."""
+        from apps.conversations.models import Conversation
+        from apps.conversations.serializers import serialize_conversation_snapshot
+        conv = Conversation.objects.select_related('business').get(pk=self.conversation_id)
+        snapshot = serialize_conversation_snapshot(conv)
+        total_unread = Conversation.objects.filter(business=conv.business).sum_panel_unread()
+        return snapshot, str(conv.business_id), total_unread
+
+    async def _notify_read(self):
+        """Emite inbox_update al business para que el badge global se actualice."""
+        try:
+            snapshot, business_id, total_unread = await self._get_snapshot_and_total()
+            await self.channel_layer.group_send(
+                f'inbox.{business_id}',
+                {
+                    'type': 'inbox.update',
+                    'kind': 'update',
+                    'conversation': snapshot,
+                    'total_unread': total_unread,
+                }
+            )
+        except Exception as exc:
+            logger.warning('Error notifying read to inbox: %s', exc)
 
     @classmethod
     def broadcast_to_conversation(cls, conversation_id, payload):

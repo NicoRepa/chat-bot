@@ -41,6 +41,10 @@
             <div class="chat-main">
                 <div class="chat-header">
                     <div class="chat-header-info">
+                        <!-- Back button only visible on mobile -->
+                        <a href="{% url 'panel:conversation_list' %}" class="btn btn-ghost btn-sm mobile-back-btn" title="Volver">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+                        </a>
                         <div class="contact-avatar">
                             {{ conversation.contact.name|first|default:"?" }}
                         </div>
@@ -52,10 +56,10 @@
                     </div>
                     <div class="chat-header-actions">
                         <!-- Estado -->
-                        <form method="post" action="{% url 'panel:update_status' conversation.id %}"
+                        <form id="status-form" data-conv-action method="post" action="{% url 'panel:update_status' conversation.id %}"
                             style="display:inline;">
                             {% csrf_token %}
-                            <select name="status" class="status-select" onchange="this.form.submit()"
+                            <select name="status" id="status-select" class="status-select" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}))"
                                 style="width:auto;">
                                 {% for key, label in status_choices %}
                                 <option value="{{ key }}" {% if conversation.status == key %}selected{% endif %}>{{ label }}</option>
@@ -63,12 +67,12 @@
                             </select>
                         </form>
 
-                        <!-- IA toggle -->
-                        <form method="post" action="{% url 'panel:toggle_ai' conversation.id %}"
+                        <!-- IA toggle: ambos botones en DOM, se muestran/ocultan vía JS -->
+                        <form id="ai-toggle-form" data-conv-action method="post" action="{% url 'panel:toggle_ai' conversation.id %}"
                             style="display:inline;">
                             {% csrf_token %}
-                            {% if conversation.is_ai_active %}
-                            <button type="submit" class="btn btn-outline btn-sm" title="Tomar control">
+                            <button type="submit" id="ai-btn-takeover" class="btn btn-outline btn-sm" title="Tomar control"
+                                {% if not conversation.is_ai_active %}style="display:none;"{% endif %}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" style="vertical-align: middle;">
                                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -76,8 +80,8 @@
                                 </svg>
                                 <span class="action-label">Tomar control</span>
                             </button>
-                            {% else %}
-                            <button type="submit" class="btn btn-primary btn-sm" title="Activar IA">
+                            <button type="submit" id="ai-btn-activate" class="btn btn-primary btn-sm" title="Activar IA"
+                                {% if conversation.is_ai_active %}style="display:none;"{% endif %}>
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                                     stroke-width="2" style="vertical-align: middle;">
                                     <rect x="3" y="11" width="18" height="10" rx="2" />
@@ -86,11 +90,10 @@
                                 </svg>
                                 <span class="action-label">Activar IA</span>
                             </button>
-                            {% endif %}
                         </form>
 
                         <!-- Reenviar menú -->
-                        <form method="post" action="{% url 'panel:resend_menu' conversation.id %}"
+                        <form data-conv-action method="post" action="{% url 'panel:resend_menu' conversation.id %}"
                             style="display:inline;">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-outline btn-sm" title="Enviar menú">
@@ -259,14 +262,14 @@
                             <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
                             <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                         </svg> Asignación</h3>
-                    <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
+                    <p id="assigned-display" style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">
                         {% if conversation.assigned_to %}
                         Asignado a: <strong>👤 {{ conversation.assigned_to.first_name|default:conversation.assigned_to.username }}</strong>
                         {% else %}
                         <span style="font-style: italic; color: var(--text-muted);">Sin asignar</span>
                         {% endif %}
                     </p>
-                    <form action="{% url 'panel:assign_agent' conversation.id %}" method="post"
+                    <form id="assign-agent-form" data-conv-action action="{% url 'panel:assign_agent' conversation.id %}" method="post"
                         style="display: flex; gap: 8px;">
                         {% csrf_token %}
                         <select name="agent_id" class="filter-select" style="flex: 1;">
@@ -297,7 +300,7 @@
                     {% else %}
                     <p style="color: var(--text-muted); font-style: italic;">Sin resumen aún</p>
                     {% endif %}
-                    <form method="post" action="{% url 'panel:refresh_summary' conversation.id %}"
+                    <form data-conv-action method="post" action="{% url 'panel:refresh_summary' conversation.id %}"
                         style="margin-top: 10px;">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-outline btn-sm" style="width: 100%;">
@@ -327,9 +330,9 @@
                         <span style="color: var(--text-muted); font-size: 11px; margin-left: 4px;">{{ conversation.classification_confidence|floatformat:0 }}%</span>
                         {% endif %}
                     </div>
-                    <form method="post" action="{% url 'panel:update_classification' conversation.id %}">
+                    <form data-conv-action method="post" action="{% url 'panel:update_classification' conversation.id %}">
                         {% csrf_token %}
-                        <select name="classification" class="classification-select" onchange="this.form.submit()">
+                        <select name="classification" class="classification-select" onchange="this.form.requestSubmit ? this.form.requestSubmit() : this.form.dispatchEvent(new Event('submit', {bubbles:true, cancelable:true}))">
                             <option value="">Cambiar...</option>
                             {% for cat in classifications %}
                             <option value="{{ cat.key }}" {% if conversation.classification == cat.key %}selected{% endif %}>{{ cat.label }}</option>
@@ -357,7 +360,7 @@
                         {% endfor %}
                     </div>
                     {% if tags %}
-                    <form method="post" action="{% url 'panel:toggle_tag' conversation.id %}"
+                    <form data-conv-action method="post" action="{% url 'panel:toggle_tag' conversation.id %}"
                         style="display: flex; gap: 8px; margin-top: 8px;">
                         {% csrf_token %}
                         <select name="tag_id" class="classification-select" style="flex: 1;" required>
@@ -408,11 +411,11 @@
                             <circle cx="12" cy="12" r="10" />
                             <polyline points="12 6 12 12 16 14" />
                         </svg> SLA</h3>
-                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div id="sla-section" style="display: flex; flex-direction: column; gap: 6px;">
                         {% if conversation.is_ai_active %}
-                        <span class="ai-badge active" style="align-self: flex-start;">🤖 IA Automática Activa</span>
+                        <span id="ai-status-badge" class="ai-badge active" style="align-self: flex-start;">🤖 IA Automática Activa</span>
                         {% else %}
-                        <span class="ai-badge inactive" style="align-self: flex-start;">👤 Control Humano</span>
+                        <span id="ai-status-badge" class="ai-badge inactive" style="align-self: flex-start;">👤 Control Humano</span>
                         {% if conversation.human_needed_at %}
                         <span
                             style="font-size: 11px; color: var(--error); display: flex; align-items: center; gap: 4px;">
@@ -439,8 +442,8 @@
                         </svg> Info</h3>
                     <div
                         style="font-size: 12px; color: var(--text-secondary); display: flex; flex-direction: column; gap: 4px;">
-                        <span><strong>Estado:</strong> {{ conversation.get_status_display }}</span>
-                        <span><strong>IA:</strong> {% if conversation.is_ai_active %}Activa{% else %}Desactivada{% endif %}</span>
+                        <span><strong>Estado:</strong> <span id="info-status-text">{{ conversation.get_status_display }}</span></span>
+                        <span><strong>IA:</strong> <span id="info-ai-text">{% if conversation.is_ai_active %}Activa{% else %}Desactivada{% endif %}</span></span>
                         <span><strong>Plataforma:</strong> {{ conversation.contact.get_platform_display }}</span>
                         <span><strong>Inicio:</strong> {{ conversation.created_at|date:"d/m/Y H:i" }}</span>
                     </div>
@@ -559,6 +562,13 @@
         display: none;
     }
 
+    /* Back button in chat header — desktop: hidden, mobile: visible */
+    .mobile-back-btn {
+        display: none;
+        flex-shrink: 0;
+        padding: 6px;
+    }
+
     /* Hide action labels on small screens */
     @media (max-width: 900px) {
         .action-label {
@@ -567,6 +577,15 @@
     }
 
     @media (max-width: 768px) {
+        /* Hide the page-level header on mobile; chat-header takes that role */
+        .conv-page-header {
+            display: none !important;
+        }
+
+        .mobile-back-btn {
+            display: inline-flex;
+        }
+
         .mobile-info-toggle {
             display: inline-flex;
             flex-shrink: 0;
@@ -574,10 +593,6 @@
 
         .mobile-info-label {
             display: none;
-        }
-
-        .conv-page-header {
-            padding-left: 36px;
         }
 
         /* Chat sidebar becomes a right drawer */
@@ -790,15 +805,39 @@
             
             if (chatInputForm) {
                 chatInputForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
                     const textInput = chatInputForm.querySelector('input[name="message"]');
-                    if (!textInput.value.trim() && !mediaFileInput.value) {
-                        e.preventDefault();
-                        return false;
-                    }
+                    const hasFile = mediaFileInput && mediaFileInput.files && mediaFileInput.files.length > 0;
+                    if (!textInput.value.trim() && !hasFile) return;
+
                     if (submitBtn) {
                         submitBtn.disabled = true;
-                        submitBtn.textContent = 'Enviando...';
+                        submitBtn.textContent = '...';
                     }
+
+                    const formData = new FormData(chatInputForm);
+                    fetch(chatInputForm.action, {
+                        method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        body: formData,
+                    })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.ok) {
+                            textInput.value = '';
+                            if (mediaFileInput) mediaFileInput.value = '';
+                            if (previewContainer) previewContainer.style.display = 'none';
+                            if (previewName) previewName.textContent = '';
+                        }
+                    })
+                    .catch(console.error)
+                    .finally(function() {
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = 'Enviar';
+                        }
+                        textInput.focus();
+                    });
                 });
             }
         }
@@ -926,6 +965,12 @@
     const chatMessages = document.getElementById('chatMessages');
     const conversationId = '{{ conversation.id }}';
     let lastMessageId = '{% if messages %}{{ messages.last.id }}{% else %}{% endif %}';
+
+    // ── Set de IDs ya renderizados (dedup robusto) ──
+    const _renderedMsgIds = new Set();
+    document.querySelectorAll('[data-msg-id]').forEach(function(el) {
+        _renderedMsgIds.add(el.dataset.msgId);
+    });
 
     if (chatMessages) {
         chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -1070,6 +1115,7 @@
 
         div.innerHTML = html;
         chatMessages.appendChild(div);
+        _renderedMsgIds.add(msg.id);
         lastMessageId = msg.id;
         try {
             var seen = JSON.parse(localStorage.getItem('conv_last_seen')) || {};
@@ -1078,21 +1124,86 @@
         } catch (e) { }
     }
 
+    // ── Actualiza UI de la conversación con datos del snapshot WS ──
+    function applyConversationUpdate(conv) {
+        // Status select
+        var statusSel = document.getElementById('status-select');
+        if (statusSel && conv.status) statusSel.value = conv.status;
+
+        // Status text en info card
+        var infoStatus = document.getElementById('info-status-text');
+        if (infoStatus && conv.status_display) infoStatus.textContent = conv.status_display;
+
+        // Botones AI toggle
+        if (conv.is_ai_active !== undefined) {
+            var btnTakeover = document.getElementById('ai-btn-takeover');
+            var btnActivate = document.getElementById('ai-btn-activate');
+            if (btnTakeover) btnTakeover.style.display = conv.is_ai_active ? '' : 'none';
+            if (btnActivate) btnActivate.style.display = conv.is_ai_active ? 'none' : '';
+
+            // Badge SLA
+            var aiBadge = document.getElementById('ai-status-badge');
+            if (aiBadge) {
+                if (conv.is_ai_active) {
+                    aiBadge.className = 'ai-badge active';
+                    aiBadge.textContent = '🤖 IA Automática Activa';
+                } else {
+                    aiBadge.className = 'ai-badge inactive';
+                    aiBadge.textContent = '👤 Control Humano';
+                }
+            }
+
+            // Info AI text
+            var infoAi = document.getElementById('info-ai-text');
+            if (infoAi) infoAi.textContent = conv.is_ai_active ? 'Activa' : 'Desactivada';
+        }
+
+        // Asignación display
+        if (conv.assigned_to_display !== undefined) {
+            var assignedEl = document.getElementById('assigned-display');
+            if (assignedEl) {
+                if (conv.assigned_to_display) {
+                    assignedEl.innerHTML = 'Asignado a: <strong>👤 ' + conv.assigned_to_display + '</strong>';
+                } else {
+                    assignedEl.innerHTML = '<span style="font-style:italic;color:var(--text-muted);">Sin asignar</span>';
+                }
+            }
+        }
+    }
+
     // ── WebSocket para mensajes en tiempo real ──
     if (typeof PanelRealtime !== 'undefined') {
         var convSock = PanelRealtime.subscribeConversation(conversationId);
+
         convSock.on('chat_message', function(data) {
             var msg = data.message;
-            if (!msg) return;
-            // No duplicar si ya existe en el DOM
-            if (document.querySelector('[data-msg-id="' + msg.id + '"]')) return;
+            if (!msg || _renderedMsgIds.has(msg.id)) return;
             var isAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 50;
             appendMessage(msg);
             if (isAtBottom) {
                 chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: 'smooth' });
             }
         });
+
+        convSock.on('conversation_updated', function(data) {
+            if (data.conversation) applyConversationUpdate(data.conversation);
+        });
     }
+
+    // ── Interceptor AJAX genérico para forms de acción ──
+    document.querySelectorAll('form[data-conv-action]').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var fd = new FormData(form);
+            fetch(form.action, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: fd,
+            })
+            .then(function(r) { return r.json(); })
+            .catch(function() {});
+        });
+    });
 
     // ── Chat list sidebar (real-time) ──
     var CHAT_LIST_POLL = 5000;
