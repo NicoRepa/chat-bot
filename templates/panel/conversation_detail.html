@@ -386,6 +386,7 @@
                             <line x1="3" y1="18" x2="3.01" y2="18" />
                         </svg> Selecciones</h3>
                     {% for sel in conversation.menu_selections %}
+                    {% if sel.category %}
                     <div class="menu-selection-item">
                         <span>{{ sel.category }}</span>
                         {% if sel.subcategory %}
@@ -397,6 +398,7 @@
                         <span>{{ sel.sub_subcategory }}</span>
                         {% endif %}
                     </div>
+                    {% endif %}
                     {% endfor %}
                 </div>
                 {% endif %}

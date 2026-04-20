@@ -11,7 +11,8 @@
       "Bash(python manage.py makemigrations appointments --name initial)",
       "Bash(python manage.py migrate appointments)",
       "Bash(python manage.py makemigrations core --name auto_summary_interval)",
-      "Bash(python manage.py makemigrations core --name feature_appointments)"
+      "Bash(python manage.py makemigrations core --name feature_appointments)",
+      "Bash(python manage.py showmigrations --plan)"
     ]
   }
 }
