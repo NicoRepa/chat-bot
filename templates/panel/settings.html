@@ -391,12 +391,38 @@
                 </div>
 
                 <div class="form-group">
-                    <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                        <input type="checkbox" name="ai_globally_disabled" {% if config.ai_globally_disabled %}checked{% endif %}
-                            style="width: 16px; height: 16px;">
-                        Desactivar IA globalmente
-                    </label>
-                    <p class="form-hint">Si está activado, la IA no responde automáticamente. Ideal para negocios que solo quieren usar el menú interactivo y atención humana.</p>
+                    <label class="form-label">Modo de IA</label>
+                    <p class="form-hint" style="margin-bottom:10px;">Controlá cómo usa la IA el bot en cada conversación.</p>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                            <input type="radio" name="ai_mode" value="full"
+                                {% if config.ai_mode == 'full' or not config.ai_mode %}checked{% endif %}
+                                style="margin-top:3px; flex-shrink:0;">
+                            <span>
+                                <strong>IA completa</strong><br>
+                                <small class="form-hint">El bot responde con IA, maneja el menú, los turnos y cualquier pregunta libre.</small>
+                            </span>
+                        </label>
+                        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                            <input type="radio" name="ai_mode" value="menu_handoff"
+                                {% if config.ai_mode == 'menu_handoff' %}checked{% endif %}
+                                style="margin-top:3px; flex-shrink:0;">
+                            <span>
+                                <strong>Menú + turnos (deriva a agente)</strong><br>
+                                <small class="form-hint">El bot maneja el menú y la agenda de turnos, pero para preguntas libres deriva automáticamente a un agente.</small>
+                            </span>
+                        </label>
+                        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer;">
+                            <input type="radio" name="ai_mode" value="menu_only"
+                                {% if config.ai_mode == 'menu_only' %}checked{% endif %}
+                                style="margin-top:3px; flex-shrink:0;">
+                            <span>
+                                <strong>Solo menú</strong><br>
+                                <small class="form-hint">El bot solo envía el saludo y el menú. No usa IA ni deriva a agentes automáticamente.</small>
+                            </span>
+                        </label>
+                    </div>
+                    <input type="hidden" name="ai_globally_disabled" value="{% if config.ai_globally_disabled %}on{% endif %}">
                 </div>
 
                 <div class="form-group">

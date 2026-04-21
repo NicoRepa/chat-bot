@@ -111,10 +111,22 @@ class BusinessConfig(models.Model):
         default=True,
         help_text='Si está activo, el primer mensaje incluye el menú de opciones.'
     )
+    AI_MODE_CHOICES = [
+        ('full', 'IA completa (responde todo)'),
+        ('menu_handoff', 'Menú + turnos (deriva a agente para chat libre)'),
+        ('menu_only', 'Solo menú (sin IA, sin derivación automática)'),
+    ]
+    ai_mode = models.CharField(
+        'Modo de IA',
+        max_length=20,
+        choices=AI_MODE_CHOICES,
+        default='full',
+        help_text='Controla cómo usa la IA el bot.'
+    )
     ai_globally_disabled = models.BooleanField(
-        'Desactivar IA globalmente',
+        'Desactivar IA globalmente (legacy)',
         default=False,
-        help_text='Si está activo, la IA no responde automáticamente. Solo funciona el menú interactivo y la atención humana.'
+        help_text='Reemplazado por Modo de IA. Si está activo se trata como "Solo menú".'
     )
     ai_auto_summary_interval = models.IntegerField(
         'Auto-resumen cada N mensajes',

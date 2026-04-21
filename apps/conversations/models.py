@@ -106,6 +106,7 @@ class Conversation(models.Model):
         ('ai_chat', 'Chat con IA'),
         ('human_chat', 'Chat con humano'),
         ('appointment_slot_selection', 'Selección de turno'),
+        ('appointment_cancel_selection', 'Cancelación de turno'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

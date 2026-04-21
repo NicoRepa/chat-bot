@@ -141,19 +141,27 @@ class ChatOrchestrator:
             
         threading.Thread(target=_send_push_async, daemon=True).start()
 
-        # 4. Si la IA no está activa, o si está desactivada globalmente para el negocio
-        if not conversation.is_ai_active or getattr(business.config, 'ai_globally_disabled', False):
+        # 4. Determinar modo de IA efectivo
+        ai_mode = getattr(business.config, 'ai_mode', 'full')
+        # Backwards compat: ai_globally_disabled legacy
+        if getattr(business.config, 'ai_globally_disabled', False) and ai_mode == 'full':
+            ai_mode = 'menu_only'
+
+        # Si un agente humano tomó control Y el modo es IA completa → no interferir
+        if not conversation.is_ai_active and ai_mode == 'full':
             conversation.save(update_fields=['panel_unread_count', 'updated_at'])
             return {
                 'response': None,
                 'conversation_id': str(conversation.id),
                 'status': 'waiting_for_agent',
-                'message': 'IA desactivada, esperando respuesta del recepcionista.'
+                'message': 'Agente humano activo, esperando respuesta del recepcionista.'
             }
 
         # 5. Procesar según el estado del menú
         usage_acc = {'tokens': 0, 'cost': 0.0}
-        response_data = ChatOrchestrator._process_by_state(conversation, message_text, business, usage_acc)
+        response_data = ChatOrchestrator._process_by_state(
+            conversation, message_text, business, usage_acc, ai_mode=ai_mode
+        )
 
         # _process_by_state puede devolver:
         #   - un string (texto plano, respuesta IA o mensaje simple)
@@ -282,16 +290,20 @@ class ChatOrchestrator:
         return text
 
     @staticmethod
-    def _process_by_state(conversation, message_text, business, usage_acc=None):
+    def _process_by_state(conversation, message_text, business, usage_acc=None, ai_mode='full'):
         """
         Procesa el mensaje según el estado actual del menú.
-        Retorna un string (texto plano) o un dict {'text': str, 'interactive_list': dict}
-        cuando corresponde enviar un Interactive List Message de WhatsApp.
+        ai_mode: 'full' | 'menu_handoff' | 'menu_only'
         """
         if usage_acc is None:
             usage_acc = {'tokens': 0, 'cost': 0.0}
         config = business.config
         state = conversation.menu_state
+
+        # En modos no-full, si la conversación quedó en human_chat, reiniciar al menú
+        if ai_mode != 'full' and state == 'human_chat':
+            conversation.menu_state = 'initial'
+            state = 'initial'
 
         # Estado inicial → enviar saludo + menú
         if state == 'initial':
@@ -560,8 +572,17 @@ class ChatOrchestrator:
                 conversation, message_text, business, usage_acc
             )
 
+        # Cancelación de turno (selección de cuál cancelar si hay varios)
+        elif state == 'appointment_cancel_selection':
+            return ChatOrchestrator._handle_cancellation_selection(
+                conversation, message_text, business, usage_acc
+            )
+
         # Chat con IA
         elif state == 'ai_chat':
+            if ai_mode == 'menu_only':
+                return None
+
             msg_stripped = message_text.strip()
             msg_lower = msg_stripped.lower()
 
@@ -581,8 +602,40 @@ class ChatOrchestrator:
                         )
                         if result is not None:
                             return result
+
+                    cancel_keywords = [
+                        'cancelar turno', 'cancelar cita', 'quiero cancelar', 'necesito cancelar',
+                        'borrar turno', 'borrar cita', 'anular turno', 'anular cita',
+                        'cancela mi turno', 'cancela mi cita', 'no puedo ir', 'no voy a poder',
+                    ]
+                    if any(kw in msg_lower for kw in cancel_keywords):
+                        result = ChatOrchestrator._handle_cancellation_intent(
+                            conversation, appt_config
+                        )
+                        if result is not None:
+                            return result
             except Exception:
                 pass
+
+            # Modo menú+derivación: para chat libre siempre deriva a agente (sin IA)
+            if ai_mode == 'menu_handoff':
+                within_hours, _ = is_within_business_hours(config)
+                if not within_hours:
+                    from apps.core.schedule_utils import get_schedule_display
+                    schedule_text = get_schedule_display(config)
+                    out_msg = config.out_of_hours_message or (
+                        '⏰ En este momento estamos fuera del horario de atención.'
+                    )
+                    return f'{out_msg}\n\n{schedule_text}'
+                conversation.is_ai_active = False
+                conversation.menu_state = 'human_chat'
+                conversation.human_needed_at = timezone.now()
+                ChatOrchestrator._classify_and_summarize(conversation)
+                escalation_msg = config.escalation_message or (
+                    '👤 Te voy a comunicar con un agente para ayudarte mejor. '
+                    'En breve te atiende una persona. ¡Gracias por tu paciencia!'
+                )
+                return escalation_msg
 
             # Detectar pedido de agente humano (usando IA para entender intención)
             wants_human = ai_service.detect_human_request(message_text)
@@ -676,86 +729,243 @@ class ChatOrchestrator:
             return None
 
     @staticmethod
+    def _rebuild_slots(pending_slots):
+        from datetime import datetime
+        result = []
+        for s in (pending_slots or []):
+            try:
+                start = datetime.fromisoformat(s['start'])
+                end = datetime.fromisoformat(s['end'])
+                if not start.tzinfo:
+                    start = timezone.make_aware(start)
+                if not end.tzinfo:
+                    end = timezone.make_aware(end)
+                result.append((start, end))
+            except Exception:
+                pass
+        return result
+
+    @staticmethod
+    def _clear_pending_slots(conversation):
+        if conversation.menu_selections:
+            conversation.menu_selections = [
+                s for s in conversation.menu_selections
+                if 'pending_slots' not in s and 'slot_offset' not in s
+            ]
+
+    @staticmethod
     def _handle_appointment_selection(conversation, message_text, business, usage_acc):
         """
         Procesa la selección de un slot numerado por el usuario.
         """
         from apps.appointments.services import AppointmentService
-        from datetime import datetime
+        from datetime import datetime, date as dt_date
         try:
             appt_config = business.appointment_config
         except Exception:
             conversation.menu_state = 'ai_chat'
             return ChatOrchestrator._ai_generate(conversation, message_text, usage_acc)
 
-        # Recuperar slots pendientes
+        msg_lower = message_text.strip().lower()
+
+        # --- Palabras clave para cancelar/salir ---
+        EXIT_KEYWORDS = ['cancelar', 'salir', 'no quiero', 'no gracias', 'dejalo', 'olvida', 'olvídalo', 'listo', 'otro tema', 'nada', 'no importa']
+        if any(kw in msg_lower for kw in EXIT_KEYWORDS):
+            ChatOrchestrator._clear_pending_slots(conversation)
+            conversation.menu_state = 'ai_chat'
+            return ChatOrchestrator._ai_generate(conversation, message_text, usage_acc)
+
+        # Recuperar slots pendientes y offset actual
         pending_slots = []
+        slot_offset = 0
         if conversation.menu_selections:
             for sel in reversed(conversation.menu_selections):
-                if 'pending_slots' in sel:
+                if 'pending_slots' in sel and not pending_slots:
                     pending_slots = sel['pending_slots']
-                    break
-
-        msg_stripped = message_text.strip()
+                if 'slot_offset' in sel:
+                    slot_offset = sel['slot_offset']
 
         # Intentar parsear la selección numérica
         try:
-            idx = int(msg_stripped) - 1
+            idx = int(message_text.strip()) - 1
         except (ValueError, TypeError):
             idx = -1
 
-        if not pending_slots or idx < 0 or idx >= len(pending_slots):
-            # Re-mostrar los slots en lugar de caer en IA (que hace confirmaciones falsas)
-            if pending_slots:
-                from apps.appointments.services import AppointmentService as _AS
-                slots_rebuilt = []
-                for s in pending_slots:
-                    try:
-                        start = datetime.fromisoformat(s['start'])
-                        end = datetime.fromisoformat(s['end'])
-                        if not start.tzinfo:
-                            start = timezone.make_aware(start)
-                        if not end.tzinfo:
-                            end = timezone.make_aware(end)
-                        slots_rebuilt.append((start, end))
-                    except Exception:
-                        pass
-                if slots_rebuilt:
-                    return '⚠️ Por favor respondé con el *número* de la opción:\n\n' + _AS.format_slots_for_ai(appt_config, slots_rebuilt)
+        # --- Número válido → reservar ---
+        if pending_slots and 0 <= idx < len(pending_slots):
+            slot = pending_slots[idx]
+            try:
+                start_dt = datetime.fromisoformat(slot['start'])
+                if not start_dt.tzinfo:
+                    start_dt = timezone.make_aware(start_dt)
+            except Exception:
+                conversation.menu_state = 'ai_chat'
+                return 'Hubo un error procesando el horario. Por favor intentá de nuevo.'
+
+            contact_name = ''
+            if conversation.contact:
+                contact_name = conversation.contact.name or conversation.contact.phone or 'Cliente'
+            contact_phone = conversation.contact.phone if conversation.contact else ''
+
+            appt, error = AppointmentService.book_appointment(
+                appt_config, contact_name, contact_phone, start_dt,
+                conversation=conversation, created_by_ai=True
+            )
+
+            ChatOrchestrator._clear_pending_slots(conversation)
             conversation.menu_state = 'ai_chat'
-            return '⚠️ No se encontraron horarios guardados. Por favor escribí "turno" para ver la disponibilidad nuevamente.'
 
-        slot = pending_slots[idx]
-        try:
-            start_dt = datetime.fromisoformat(slot['start'])
-            if not start_dt.tzinfo:
-                start_dt = timezone.make_aware(start_dt)
-        except Exception:
-            conversation.menu_state = 'ai_chat'
-            return f'Hubo un error procesando el horario. Por favor intentá de nuevo.'
+            if error:
+                return f'❌ No pudimos reservar ese horario: {error}. ¿Querés elegir otro?'
+            return AppointmentService.format_confirmation(appt_config, appt)
 
-        # Obtener nombre del contacto
-        contact_name = ''
-        if conversation.contact:
-            contact_name = conversation.contact.name or conversation.contact.phone or 'Cliente'
-        contact_phone = conversation.contact.phone if conversation.contact else ''
+        # --- Palabras clave para ver más horarios ---
+        MORE_KEYWORDS = ['más', 'mas', 'otros', 'otra', 'otro', 'diferente', 'próximo', 'proximo',
+                         'próxima', 'proxima', 'semana', 'más opciones', 'mas opciones',
+                         'más horarios', 'mas horarios', 'más días', 'mas dias', 'ver más', 'ver mas']
+        if any(kw in msg_lower for kw in MORE_KEYWORDS):
+            new_offset = slot_offset + 8
+            try:
+                all_days = AppointmentService.get_available_days(appt_config, dt_date.today(), days_ahead=30)
+                all_slots = []
+                for d in all_days:
+                    all_slots.extend(AppointmentService.get_available_slots(appt_config, d))
 
-        appt, error = AppointmentService.book_appointment(
-            appt_config, contact_name, contact_phone, start_dt,
-            conversation=conversation, created_by_ai=True
-        )
+                next_slots = all_slots[new_offset:new_offset + 8]
+                if not next_slots:
+                    slots_rebuilt = ChatOrchestrator._rebuild_slots(pending_slots)
+                    msg = AppointmentService.format_slots_for_ai(appt_config, slots_rebuilt) if slots_rebuilt else ''
+                    return (
+                        f'No hay más horarios disponibles más adelante.\n\n'
+                        + (msg + '\n\n' if msg else '')
+                        + '_Elegí un número, o escribí *cancelar* para salir._'
+                    )
+
+                # Actualizar pending_slots y offset
+                ChatOrchestrator._clear_pending_slots(conversation)
+                conversation.menu_selections = conversation.menu_selections or []
+                conversation.menu_selections.append({'pending_slots': [
+                    {'start': s.isoformat(), 'end': e.isoformat()} for s, e in next_slots
+                ]})
+                conversation.menu_selections.append({'slot_offset': new_offset})
+
+                return (
+                    AppointmentService.format_slots_for_ai(appt_config, next_slots)
+                    + '\n\n_Elegí un número, escribí *más opciones* para seguir viendo, o *cancelar* para salir._'
+                )
+            except Exception as e:
+                logger.error(f'Error mostrando más slots: {e}')
+
+        # --- Cualquier otra cosa: re-mostrar lista con instrucciones de salida ---
+        if pending_slots:
+            slots_rebuilt = ChatOrchestrator._rebuild_slots(pending_slots)
+            if slots_rebuilt:
+                return (
+                    AppointmentService.format_slots_for_ai(appt_config, slots_rebuilt)
+                    + '\n\n_Respondé con el *número* de la opción, escribí *más opciones* para ver otros horarios, o *cancelar* para salir._'
+                )
 
         conversation.menu_state = 'ai_chat'
-        # Limpiar slots pendientes
+        return '⚠️ No se encontraron horarios guardados. Escribí "turno" para ver la disponibilidad nuevamente.'
+
+    @staticmethod
+    def _handle_cancellation_intent(conversation, appt_config):
+        """
+        Detecta intención de cancelar y cancela directamente o pide confirmación si hay varias.
+        """
+        from apps.appointments.models import Appointment
+        phone = conversation.contact.phone if conversation.contact else None
+        appts = list(Appointment.objects.filter(
+            config=appt_config,
+            status__in=['scheduled', 'confirmed'],
+        ).filter(
+            Q(conversation=conversation) | (Q(contact_phone=phone) if phone else Q())
+        ).order_by('start_datetime'))
+
+        if not appts:
+            return 'No encontré citas activas para cancelar. Si querés hacer una nueva reserva, escribí "turno".'
+
+        if len(appts) == 1:
+            appt = appts[0]
+            appt.status = 'cancelled'
+            appt.save(update_fields=['status'])
+            from apps.appointments.services import AppointmentService
+            return AppointmentService.format_cancellation(appt_config, appt)
+
+        # Múltiples citas → pedir que elija
+        lines = ['Tenés estas citas activas. ¿Cuál querés cancelar?\n']
+        _DAYS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+        for i, appt in enumerate(appts, 1):
+            local = timezone.localtime(appt.start_datetime)
+            day_name = _DAYS_ES[local.weekday()]
+            lines.append(f'{i}. {day_name} {local.strftime("%d/%m")} a las *{local.strftime("%H:%M")}*')
+        lines.append('\n_Respondé con el número de la cita a cancelar, o escribí *cancelar* para salir._')
+
+        conversation.menu_selections = conversation.menu_selections or []
+        conversation.menu_selections.append({
+            'pending_cancel': [str(a.pk) for a in appts]
+        })
+        conversation.menu_state = 'appointment_cancel_selection'
+        return '\n'.join(lines)
+
+    @staticmethod
+    def _handle_cancellation_selection(conversation, message_text, business, usage_acc):
+        """
+        Procesa la elección de qué cita cancelar.
+        """
+        from apps.appointments.models import Appointment
+        from apps.appointments.services import AppointmentService
+        try:
+            appt_config = business.appointment_config
+        except Exception:
+            conversation.menu_state = 'ai_chat'
+            return ChatOrchestrator._ai_generate(conversation, message_text, usage_acc)
+
+        msg_lower = message_text.strip().lower()
+
+        EXIT_KEYWORDS = ['cancelar', 'salir', 'no', 'nada', 'no quiero', 'listo']
+        if any(kw in msg_lower for kw in EXIT_KEYWORDS):
+            if conversation.menu_selections:
+                conversation.menu_selections = [
+                    s for s in conversation.menu_selections if 'pending_cancel' not in s
+                ]
+            conversation.menu_state = 'ai_chat'
+            return ChatOrchestrator._ai_generate(conversation, message_text, usage_acc)
+
+        pending_cancel = []
+        if conversation.menu_selections:
+            for sel in reversed(conversation.menu_selections):
+                if 'pending_cancel' in sel:
+                    pending_cancel = sel['pending_cancel']
+                    break
+
+        try:
+            idx = int(message_text.strip()) - 1
+        except (ValueError, TypeError):
+            idx = -1
+
+        if not pending_cancel or idx < 0 or idx >= len(pending_cancel):
+            return '⚠️ Por favor respondé con el *número* de la cita, o escribí *salir* para cancelar.'
+
+        appt_id = pending_cancel[idx]
+        try:
+            appt = Appointment.objects.get(pk=appt_id, status__in=['scheduled', 'confirmed'])
+            appt.status = 'cancelled'
+            appt.save(update_fields=['status'])
+        except Appointment.DoesNotExist:
+            conversation.menu_state = 'ai_chat'
+            if conversation.menu_selections:
+                conversation.menu_selections = [
+                    s for s in conversation.menu_selections if 'pending_cancel' not in s
+                ]
+            return '❌ No encontré esa cita o ya estaba cancelada.'
+
         if conversation.menu_selections:
             conversation.menu_selections = [
-                s for s in conversation.menu_selections if 'pending_slots' not in s
+                s for s in conversation.menu_selections if 'pending_cancel' not in s
             ]
-
-        if error:
-            return f'❌ No pudimos reservar ese horario: {error}. ¿Querés elegir otro?'
-
-        return AppointmentService.format_confirmation(appt_config, appt)
+        conversation.menu_state = 'ai_chat'
+        return AppointmentService.format_cancellation(appt_config, appt)
 
     @staticmethod
     def _classify_and_summarize(conversation):
