@@ -1203,6 +1203,9 @@
         e.preventDefault();
         e.stopPropagation();
 
+        // Capturar FormData ANTES de limpiar inputs
+        var fd = new FormData(form);
+
         // Para el form del chat: validar y limpiar UI
         if (isChatForm) {
             var textInput = form.querySelector('input[name="message"]');
@@ -1213,11 +1216,10 @@
 
             var previewCont = document.getElementById('file-preview-container');
             var previewNm = document.getElementById('file-preview-name');
-            if (textInput) textInput.value = '';
+            if (textInput) { textInput.value = ''; textInput.focus(); }
             if (fileInput) fileInput.value = '';
             if (previewCont) previewCont.style.display = 'none';
             if (previewNm) previewNm.textContent = '';
-            if (textInput) textInput.focus();
         }
 
         var submitBtn = form.querySelector('[type=submit]');
@@ -1226,7 +1228,7 @@
         fetch(form.action, {
             method: 'POST',
             headers: { 'X-Requested-With': 'XMLHttpRequest' },
-            body: new FormData(form),
+            body: fd,
         })
         .then(function(r) { return r.json(); })
         .then(function(data) {
