@@ -1,6 +1,5 @@
 """
 WebSocket consumers para el panel de recepcionistas.
-Reemplazan el polling HTTP con eventos en tiempo real.
 """
 import json
 import logging
@@ -17,7 +16,6 @@ class InboxConsumer(AsyncJsonWebsocketConsumer):
     """
     Consumer del inbox general del negocio.
     Grupo: inbox.{business_id}
-    Recibe updates de CUALQUIER conversación del negocio (para badges globales).
     """
 
     async def connect(self):
@@ -37,34 +35,32 @@ class InboxConsumer(AsyncJsonWebsocketConsumer):
 
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
-            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+            try:
+                await self.channel_layer.group_discard(self.group_name, self.channel_name)
+            except Exception:
+                pass
 
     async def receive_json(self, content, **kwargs):
-        action = content.get('action', '')
-        if action == 'ping':
+        if content.get('action') == 'ping':
             await self.send_json({'type': 'pong'})
 
-    # ── Group message handlers ──────────────────────────
-
     async def inbox_update(self, event):
-        """Recibe un update del inbox y lo reenvía al WebSocket del cliente."""
         await self.send_json(event)
-
-    # ── Helpers ──────────────────────────────────────────
 
     @database_sync_to_async
     def _get_business_id(self, user):
         try:
+            # Superusuario: buscar el primer negocio activo
+            if user.is_superuser:
+                from apps.core.models import Business
+                biz = Business.objects.filter(is_active=True).first()
+                return str(biz.id) if biz else None
             return str(user.profile.business_id)
         except Exception:
             return None
 
     @classmethod
     def broadcast_to_business(cls, business_id, payload):
-        """
-        Envía un mensaje a todos los WebSockets del inbox de un negocio.
-        Para uso desde código síncrono (signals, views).
-        """
         channel_layer = get_channel_layer()
         if channel_layer is None:
             return
@@ -79,7 +75,6 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
     """
     Consumer de una conversación específica.
     Grupo: conversation.{conversation_id}
-    Recibe mensajes nuevos y updates de estado.
     """
 
     async def connect(self):
@@ -90,7 +85,6 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
 
         self.conversation_id = self.scope['url_route']['kwargs']['conversation_id']
 
-        # Verificar que la conversación pertenece al negocio del usuario
         is_valid = await self._verify_ownership(user, self.conversation_id)
         if not is_valid:
             await self.close()
@@ -100,13 +94,15 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
-        # Marcar como leída al conectar y notificar al inbox
         await self._mark_read()
         await self._notify_read()
 
     async def disconnect(self, close_code):
         if hasattr(self, 'group_name'):
-            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+            try:
+                await self.channel_layer.group_discard(self.group_name, self.channel_name)
+            except Exception:
+                pass
 
     async def receive_json(self, content, **kwargs):
         action = content.get('action', '')
@@ -116,32 +112,26 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         elif action == 'ping':
             await self.send_json({'type': 'pong'})
 
-    # ── Group message handlers ──────────────────────────
-
     async def chat_message(self, event):
-        """Nuevo mensaje en la conversación."""
         await self.send_json(event)
 
     async def conversation_updated(self, event):
-        """Metadata de la conversación actualizada."""
         await self.send_json(event)
-
-    # ── Helpers ──────────────────────────────────────────
 
     @database_sync_to_async
     def _verify_ownership(self, user, conversation_id):
-        """Verifica que la conversación pertenece al negocio del usuario."""
         try:
+            # Superusuario: acceso total
+            if user.is_superuser:
+                return True
             from apps.conversations.models import Conversation
             conv = Conversation.objects.select_related('business').get(pk=conversation_id)
-            business_id = user.profile.business_id
-            return str(conv.business_id) == str(business_id)
+            return str(conv.business_id) == str(user.profile.business_id)
         except Exception:
             return False
 
     @database_sync_to_async
     def _mark_read(self):
-        """Pone panel_unread_count=0 para esta conversación."""
         try:
             from apps.conversations.models import Conversation
             Conversation.objects.filter(
@@ -153,16 +143,19 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
 
     @database_sync_to_async
     def _get_snapshot_and_total(self):
-        """Devuelve (snapshot, business_id_str, total_unread) para notificar al inbox."""
         from apps.conversations.models import Conversation
         from apps.conversations.serializers import serialize_conversation_snapshot
         conv = Conversation.objects.select_related('business').get(pk=self.conversation_id)
         snapshot = serialize_conversation_snapshot(conv)
-        total_unread = Conversation.objects.filter(business=conv.business).sum_panel_unread()
+        try:
+            total_unread = Conversation.objects.filter(
+                business=conv.business
+            ).sum_panel_unread()
+        except Exception:
+            total_unread = 0
         return snapshot, str(conv.business_id), total_unread
 
     async def _notify_read(self):
-        """Emite inbox_update al business para que el badge global se actualice."""
         try:
             snapshot, business_id, total_unread = await self._get_snapshot_and_total()
             await self.channel_layer.group_send(
@@ -179,10 +172,6 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
 
     @classmethod
     def broadcast_to_conversation(cls, conversation_id, payload):
-        """
-        Envía un mensaje a todos los WebSockets de una conversación.
-        Para uso desde código síncrono (signals, views).
-        """
         channel_layer = get_channel_layer()
         if channel_layer is None:
             return
