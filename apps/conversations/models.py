@@ -105,6 +105,7 @@ class Conversation(models.Model):
         ('menu_response', 'Respuesta de menú'),
         ('ai_chat', 'Chat con IA'),
         ('human_chat', 'Chat con humano'),
+        ('appointment_slot_selection', 'Selección de turno'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -139,7 +140,7 @@ class Conversation(models.Model):
 
     # Estado del menú interactivo
     menu_state = models.CharField(
-        'Estado del menú', max_length=20,
+        'Estado del menú', max_length=50,
         choices=MENU_STATE_CHOICES, default='initial'
     )
     menu_selections = models.JSONField(

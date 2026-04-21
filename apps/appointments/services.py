@@ -181,9 +181,11 @@ class AppointmentService:
         if not slots:
             return 'No hay horarios disponibles en los próximos días.'
 
+        _DAYS_ES = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
         lines = [f'📅 *Horarios disponibles para tu {config.slot_name}:*\n']
         for i, (start, _) in enumerate(slots[:max_show], 1):
             local = timezone.localtime(start)
-            lines.append(f'{i}. {local.strftime("%A %d/%m")} a las *{local.strftime("%H:%M")}*')
+            day_name = _DAYS_ES[local.weekday()]
+            lines.append(f'{i}. {day_name} {local.strftime("%d/%m")} a las *{local.strftime("%H:%M")}*')
         lines.append('\n_Respondé con el número de la opción que preferís._')
         return '\n'.join(lines)

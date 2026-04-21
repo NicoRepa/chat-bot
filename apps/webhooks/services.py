@@ -705,9 +705,25 @@ class ChatOrchestrator:
             idx = -1
 
         if not pending_slots or idx < 0 or idx >= len(pending_slots):
-            # No es una selección válida, volver a IA normal
+            # Re-mostrar los slots en lugar de caer en IA (que hace confirmaciones falsas)
+            if pending_slots:
+                from apps.appointments.services import AppointmentService as _AS
+                slots_rebuilt = []
+                for s in pending_slots:
+                    try:
+                        start = datetime.fromisoformat(s['start'])
+                        end = datetime.fromisoformat(s['end'])
+                        if not start.tzinfo:
+                            start = timezone.make_aware(start)
+                        if not end.tzinfo:
+                            end = timezone.make_aware(end)
+                        slots_rebuilt.append((start, end))
+                    except Exception:
+                        pass
+                if slots_rebuilt:
+                    return '⚠️ Por favor respondé con el *número* de la opción:\n\n' + _AS.format_slots_for_ai(appt_config, slots_rebuilt)
             conversation.menu_state = 'ai_chat'
-            return ChatOrchestrator._ai_generate(conversation, message_text, usage_acc)
+            return '⚠️ No se encontraron horarios guardados. Por favor escribí "turno" para ver la disponibilidad nuevamente.'
 
         slot = pending_slots[idx]
         try:
