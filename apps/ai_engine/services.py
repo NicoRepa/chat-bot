@@ -464,9 +464,55 @@ Respondé SOLO con el resumen, sin formato extra."""
                 return response.choices[0].message.content.strip()
             return ''
 
+    def extract_appointment_date(self, message_text):
+        """
+        Analiza si el mensaje solicita una fecha específica para un turno.
+        Retorna un objeto date si detecta una fecha, o None si no la detecta.
+        """
+        if not self.client or not message_text:
+            return None
+
+        try:
+            from datetime import date, datetime
+            import json
+            today_str = date.today().strftime('%Y-%m-%d')
+            
+            prompt = f"""Analizá el siguiente mensaje de un cliente que quiere reservar un turno.
+Hoy es {today_str}.
+Fijate si el cliente está pidiendo turnos para una fecha o día en particular (por ejemplo "el jueves", "el 15/08", "la semana que viene", "mañana", "pasado mañana").
+Si pide una fecha en particular, calculá qué fecha exacta es y respondé SOLO con un JSON válido:
+{{ "date": "YYYY-MM-DD" }}
+
+Si NO pide ninguna fecha en particular, respondé SOLO:
+{{ "date": null }}
+
+Mensaje: "{message_text}"
+"""
+            response = self._call_with_retry(
+                self.client.chat.completions.create,
+                model='gpt-4o-mini',
+                messages=[{'role': 'user', 'content': prompt}],
+                temperature=0.1,
+                max_tokens=20,
+            )
+
+            if response and response.choices:
+                result_text = response.choices[0].message.content.strip()
+                if result_text.startswith('```'):
+                    result_text = result_text.split('\n', 1)[1]
+                    result_text = result_text.rsplit('```', 1)[0]
+                
+                try:
+                    data = json.loads(result_text)
+                    if data.get('date'):
+                        parsed_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                        return parsed_date
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            return None
         except Exception as e:
-            logger.error(f'Error generando resumen: {e}')
-            return ''
+            logger.error(f'Error extrayendo fecha de turno: {e}')
+            return None
 
 
 # Instancia global del servicio

@@ -598,7 +598,7 @@ class ChatOrchestrator:
                     ]
                     if any(kw in msg_lower for kw in appointment_keywords):
                         result = ChatOrchestrator._handle_appointment_intent(
-                            conversation, appt_config
+                            conversation, appt_config, message_text
                         )
                         if result is not None:
                             return result
@@ -691,7 +691,7 @@ class ChatOrchestrator:
 
 
     @staticmethod
-    def _handle_appointment_intent(conversation, appt_config):
+    def _handle_appointment_intent(conversation, appt_config, message_text=None):
         """
         Detecta intención de reserva de cita y muestra los próximos slots disponibles.
         Retorna el mensaje a enviar o None si no se pudo determinar la intención.
@@ -699,7 +699,10 @@ class ChatOrchestrator:
         from apps.appointments.services import AppointmentService
         from datetime import date
         try:
-            available_days = AppointmentService.get_available_days(appt_config, date.today(), days_ahead=14)
+            target_date = ai_service.extract_appointment_date(message_text) if message_text else None
+            start_date = target_date if target_date else date.today()
+
+            available_days = AppointmentService.get_available_days(appt_config, start_date, days_ahead=14)
             if not available_days:
                 return f'Lo siento, no hay {appt_config.slot_name.lower()}s disponibles en los próximos 14 días. Te contactaremos para coordinar.'
 
@@ -856,7 +859,33 @@ class ChatOrchestrator:
             except Exception as e:
                 logger.error(f'Error mostrando más slots: {e}')
 
-        # --- Cualquier otra cosa: re-mostrar lista con instrucciones de salida ---
+        # --- Cualquier otra cosa: verificar si está pidiendo una fecha, o re-mostrar lista ---
+        target_date = ai_service.extract_appointment_date(message_text)
+        if target_date:
+            try:
+                all_days = AppointmentService.get_available_days(appt_config, target_date, days_ahead=30)
+                all_slots = []
+                for d in all_days:
+                    all_slots.extend(AppointmentService.get_available_slots(appt_config, d))
+
+                next_slots = all_slots[:8]
+                if not next_slots:
+                    return f'Lo siento, no encontré horarios disponibles cerca del {target_date.strftime("%d/%m/%Y")}. Escribí "más opciones" para ver otros turnos.'
+
+                ChatOrchestrator._clear_pending_slots(conversation)
+                conversation.menu_selections = conversation.menu_selections or []
+                conversation.menu_selections.append({'pending_slots': [
+                    {'start': s.isoformat(), 'end': e.isoformat()} for s, e in next_slots
+                ]})
+                conversation.menu_selections.append({'slot_offset': 0})
+
+                return (
+                    AppointmentService.format_slots_for_ai(appt_config, next_slots)
+                    + '\n\n_Elegí un número, escribí *más opciones* para seguir viendo, o *cancelar* para salir._'
+                )
+            except Exception as e:
+                logger.error(f'Error buscando slots para fecha específica: {e}')
+
         if pending_slots:
             slots_rebuilt = ChatOrchestrator._rebuild_slots(pending_slots)
             if slots_rebuilt:
