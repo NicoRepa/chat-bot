@@ -699,15 +699,22 @@ class ChatOrchestrator:
         from apps.appointments.services import AppointmentService
         from datetime import date
         try:
-            target_date = ai_service.extract_appointment_date(message_text) if message_text else None
-            start_date = target_date if target_date else date.today()
-            logger.info(f'_handle_appointment_intent: message="{message_text}", target_date={target_date}, start_date={start_date}')
+            date_range = ai_service.extract_appointment_date(message_text) if message_text else None
+            if date_range:
+                start_date = date_range['start_date']
+                days_ahead = (date_range['end_date'] - date_range['start_date']).days + 1
+            else:
+                start_date = date.today()
+                days_ahead = 14
+            logger.info(f'_handle_appointment_intent: message="{message_text}", date_range={date_range}, start={start_date}, days_ahead={days_ahead}')
 
-            available_days = AppointmentService.get_available_days(appt_config, start_date, days_ahead=14)
+            available_days = AppointmentService.get_available_days(appt_config, start_date, days_ahead=days_ahead)
             if not available_days:
+                if date_range:
+                    return f'Lo siento, no hay {appt_config.slot_name.lower()}s disponibles para esas fechas. Podés pedir otro día o semana.'
                 return f'Lo siento, no hay {appt_config.slot_name.lower()}s disponibles en los próximos 14 días. Te contactaremos para coordinar.'
 
-            # Juntar hasta 8 slots de los próximos días disponibles
+            # Juntar hasta 8 slots de los días disponibles dentro del rango
             all_slots = []
             for d in available_days:
                 slots = AppointmentService.get_available_slots(appt_config, d)
@@ -823,19 +830,35 @@ class ChatOrchestrator:
                 return f'❌ No pudimos reservar ese horario: {error}. ¿Querés elegir otro?'
             return AppointmentService.format_confirmation(appt_config, appt)
 
-        # --- Primero verificar si está pidiendo una fecha específica ---
-        target_date = ai_service.extract_appointment_date(message_text)
-        logger.info(f'_handle_appointment_selection: extract_appointment_date returned {target_date} for message: "{message_text}"')
-        if target_date:
+        # --- Obtener última fecha mostrada para contexto ---
+        context_last_date = None
+        if pending_slots:
+            from datetime import datetime as _dt
+            for s in pending_slots:
+                try:
+                    d = _dt.fromisoformat(s['start']).date()
+                    if context_last_date is None or d > context_last_date:
+                        context_last_date = d
+                except Exception:
+                    pass
+
+        # --- Verificar si está pidiendo una fecha específica ---
+        date_range = ai_service.extract_appointment_date(message_text, context_last_date=context_last_date)
+        logger.info(f'_handle_appointment_selection: date_range={date_range} for: "{message_text}"')
+        if date_range:
             try:
-                all_days = AppointmentService.get_available_days(appt_config, target_date, days_ahead=30)
+                start_date = date_range['start_date']
+                end_date = date_range['end_date']
+                days_in_range = (end_date - start_date).days + 1
+
+                all_days = AppointmentService.get_available_days(appt_config, start_date, days_ahead=days_in_range)
                 all_slots = []
                 for d in all_days:
                     all_slots.extend(AppointmentService.get_available_slots(appt_config, d))
 
                 next_slots = all_slots[:8]
                 if not next_slots:
-                    return f'Lo siento, no encontré horarios disponibles cerca del {target_date.strftime("%d/%m/%Y")}. Escribí "más opciones" para ver otros turnos.'
+                    return f'Lo siento, no encontré horarios disponibles del {start_date.strftime("%d/%m")} al {end_date.strftime("%d/%m")}. Podés pedir otro día o semana.'
 
                 ChatOrchestrator._clear_pending_slots(conversation)
                 conversation.menu_selections = conversation.menu_selections or []
@@ -852,11 +875,9 @@ class ChatOrchestrator:
                 logger.error(f'Error buscando slots para fecha específica: {e}')
 
         # --- Palabras clave para ver más horarios (paginación) ---
-        # NOTA: No incluir 'semana' aquí porque interfiere con "para la semana del DD/MM"
         MORE_KEYWORDS = ['más opciones', 'mas opciones', 'más horarios', 'mas horarios',
                          'más días', 'mas dias', 'ver más', 'ver mas', 'más adelante',
-                         'mas adelante', 'siguiente', 'siguientes', 'próximo', 'proximo',
-                         'próxima', 'proxima', 'otros horarios', 'otros turnos',
+                         'mas adelante', 'otros horarios', 'otros turnos',
                          'otros días', 'otros dias', 'mostrame más', 'mostrame mas']
         if any(kw in msg_lower for kw in MORE_KEYWORDS):
             new_offset = slot_offset + 8

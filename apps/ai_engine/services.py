@@ -468,11 +468,14 @@ Respondé SOLO con el resumen, sin formato extra."""
             logger.error(f'Error generando resumen: {e}')
             return ''
 
-    def extract_appointment_date(self, message_text):
+    def extract_appointment_date(self, message_text, context_last_date=None):
         """
-        Analiza si el mensaje solicita una fecha específica para un turno.
-        Retorna un objeto date si detecta una fecha, o None si no la detecta.
-        Usa IA con fallback a regex para máxima fiabilidad.
+        Analiza si el mensaje solicita una fecha o rango específico para un turno.
+        Retorna dict {'start_date': date, 'end_date': date} o None.
+        - type 'day': start_date == end_date (solo ese día)
+        - type 'week': start_date = lunes, end_date = domingo
+        - type 'next_week': semana siguiente relativa al contexto
+        context_last_date: última fecha de los slots mostrados (para resolver 'semana siguiente')
         """
         if not self.client or not message_text:
             return None
@@ -487,23 +490,36 @@ Respondé SOLO con el resumen, sin formato extra."""
             day_of_week_name = _DIAS_SEMANA[today.weekday()]
             today_str = today.strftime('%Y-%m-%d')
             year = today.year
-            
-            prompt = f"""Analizá el siguiente mensaje de un cliente que quiere reservar un turno.
-Hoy es {day_of_week_name} {today_str} (año {year}).
 
-Determiná si el cliente está pidiendo turnos para una fecha o día en particular.
-Ejemplos de pedidos con fecha: "el jueves", "el 15/08", "la semana del 04/05", "para el lunes 04/05", "mañana", "pasado mañana", "la semana que viene", "para el viernes".
+            context_hint = ''
+            if context_last_date:
+                ctx_day = _DIAS_SEMANA[context_last_date.weekday()]
+                context_hint = (
+                    f'\nEl cliente está viendo turnos que llegan hasta el {ctx_day} '
+                    f'{context_last_date.strftime("%d/%m/%Y")}. '
+                    f'Si dice "semana siguiente" o "próxima semana", '
+                    f'se refiere a la semana posterior a esa fecha.'
+                )
+
+            prompt = f"""Analizá el siguiente mensaje de un cliente que quiere reservar un turno.
+Hoy es {day_of_week_name} {today_str} (año {year}).{context_hint}
+
+Determiná si el cliente está pidiendo:
+1. Un DÍA específico: "el jueves", "el 15/08", "mañana", "para el viernes 08/05"
+2. Una SEMANA específica: "la semana del 04/05", "esta semana"
+3. La semana SIGUIENTE/próxima: "la semana siguiente", "la próxima semana", "semana que viene"
+4. Ninguna fecha en particular
 
 REGLAS:
-- Si dice "la semana del DD/MM", usá el lunes de esa semana como fecha.
-- Si dice un día de la semana sin fecha (ej: "el jueves"), calculá el próximo día con ese nombre.
-- Si dice una fecha DD/MM, asumí el año actual ({year}), o el siguiente si ya pasó.
-- Si NO pide ninguna fecha, respondé con null.
+- DD/MM = día/mes (NO mes/día). Asumí año {year}, o {year+1} si ya pasó.
+- Para un DÍA: calculá la fecha exacta.
+- Para una SEMANA: usá el LUNES de esa semana como fecha.
 
-Respondé SOLO con JSON válido, sin texto extra:
-{{ "date": "YYYY-MM-DD" }}
-o
-{{ "date": null }}
+Respondé SOLO con JSON válido:
+{{ "date": "YYYY-MM-DD", "type": "day" }}
+{{ "date": "YYYY-MM-DD", "type": "week" }}
+{{ "date": null, "type": "next_week" }}
+{{ "date": null, "type": null }}
 
 Mensaje: "{message_text}"
 """
@@ -512,40 +528,65 @@ Mensaje: "{message_text}"
                 model='gpt-4o-mini',
                 messages=[{'role': 'user', 'content': prompt}],
                 temperature=0.1,
-                max_tokens=50,
+                max_tokens=60,
             )
+
+            result_type = None
+            parsed_date = None
 
             if response and response.choices:
                 result_text = response.choices[0].message.content.strip()
-                logger.info(f'extract_appointment_date AI raw response: "{result_text}" for message: "{message_text}"')
+                logger.info(f'extract_appointment_date AI raw: "{result_text}" for: "{message_text}"')
                 if result_text.startswith('```'):
                     result_text = result_text.split('\n', 1)[1]
                     result_text = result_text.rsplit('```', 1)[0].strip()
-                
+
                 try:
                     data = json.loads(result_text)
+                    result_type = data.get('type')
                     if data.get('date'):
                         parsed_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
-                        logger.info(f'extract_appointment_date: AI extracted date {parsed_date}')
-                        return parsed_date
-                except (json.JSONDecodeError, ValueError) as parse_err:
-                    logger.warning(f'extract_appointment_date: failed to parse AI response: {parse_err}, raw: "{result_text}"')
+                        logger.info(f'extract_appointment_date: AI date={parsed_date}, type={result_type}')
+                    elif result_type == 'next_week':
+                        logger.info('extract_appointment_date: AI detected next_week')
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(f'extract_appointment_date: parse error: {e}, raw: "{result_text}"')
 
-            # --- Fallback: regex para detectar fechas DD/MM ---
-            logger.info(f'extract_appointment_date: AI returned no date, trying regex fallback for: "{message_text}"')
-            match = re.search(r'(\d{1,2})[/\-](\d{1,2})', message_text)
-            if match:
-                day_num = int(match.group(1))
-                month_num = int(match.group(2))
-                try:
-                    candidate = date(year, month_num, day_num)
-                    # Si la fecha ya pasó, usar el próximo año
-                    if candidate < today:
-                        candidate = date(year + 1, month_num, day_num)
-                    logger.info(f'extract_appointment_date: regex fallback extracted date {candidate}')
-                    return candidate
-                except ValueError:
-                    logger.warning(f'extract_appointment_date: regex found {day_num}/{month_num} but invalid date')
+            # --- Fallback regex para DD/MM ---
+            if not parsed_date and result_type not in ('next_week',):
+                match = re.search(r'(\d{1,2})[/\-](\d{1,2})', message_text)
+                if match:
+                    day_num, month_num = int(match.group(1)), int(match.group(2))
+                    try:
+                        candidate = date(year, month_num, day_num)
+                        if candidate < today:
+                            candidate = date(year + 1, month_num, day_num)
+                        parsed_date = candidate
+                        if not result_type:
+                            result_type = 'week' if 'semana' in message_text.lower() else 'day'
+                        logger.info(f'extract_appointment_date: regex date={parsed_date}, type={result_type}')
+                    except ValueError:
+                        pass
+
+            # --- Construir rango según tipo ---
+            if result_type == 'day' and parsed_date:
+                return {'start_date': parsed_date, 'end_date': parsed_date}
+
+            elif result_type == 'week' and parsed_date:
+                monday = parsed_date - timedelta(days=parsed_date.weekday())
+                sunday = monday + timedelta(days=6)
+                return {'start_date': monday, 'end_date': sunday}
+
+            elif result_type == 'next_week':
+                ref = context_last_date or today
+                days_to_monday = (7 - ref.weekday()) % 7 or 7
+                next_monday = ref + timedelta(days=days_to_monday)
+                next_sunday = next_monday + timedelta(days=6)
+                return {'start_date': next_monday, 'end_date': next_sunday}
+
+            # Si hay fecha pero sin tipo, tratar como día
+            if parsed_date:
+                return {'start_date': parsed_date, 'end_date': parsed_date}
 
             return None
         except Exception as e:
