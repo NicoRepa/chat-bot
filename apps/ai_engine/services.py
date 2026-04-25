@@ -464,26 +464,45 @@ Respondé SOLO con el resumen, sin formato extra."""
                 return response.choices[0].message.content.strip()
             return ''
 
+        except Exception as e:
+            logger.error(f'Error generando resumen: {e}')
+            return ''
+
     def extract_appointment_date(self, message_text):
         """
         Analiza si el mensaje solicita una fecha específica para un turno.
         Retorna un objeto date si detecta una fecha, o None si no la detecta.
+        Usa IA con fallback a regex para máxima fiabilidad.
         """
         if not self.client or not message_text:
             return None
 
         try:
-            from datetime import date, datetime
+            from datetime import date, datetime, timedelta
             import json
-            today_str = date.today().strftime('%Y-%m-%d')
+            import re
+
+            today = date.today()
+            _DIAS_SEMANA = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
+            day_of_week_name = _DIAS_SEMANA[today.weekday()]
+            today_str = today.strftime('%Y-%m-%d')
+            year = today.year
             
             prompt = f"""Analizá el siguiente mensaje de un cliente que quiere reservar un turno.
-Hoy es {today_str}.
-Fijate si el cliente está pidiendo turnos para una fecha o día en particular (por ejemplo "el jueves", "el 15/08", "la semana que viene", "mañana", "pasado mañana").
-Si pide una fecha en particular, calculá qué fecha exacta es y respondé SOLO con un JSON válido:
-{{ "date": "YYYY-MM-DD" }}
+Hoy es {day_of_week_name} {today_str} (año {year}).
 
-Si NO pide ninguna fecha en particular, respondé SOLO:
+Determiná si el cliente está pidiendo turnos para una fecha o día en particular.
+Ejemplos de pedidos con fecha: "el jueves", "el 15/08", "la semana del 04/05", "para el lunes 04/05", "mañana", "pasado mañana", "la semana que viene", "para el viernes".
+
+REGLAS:
+- Si dice "la semana del DD/MM", usá el lunes de esa semana como fecha.
+- Si dice un día de la semana sin fecha (ej: "el jueves"), calculá el próximo día con ese nombre.
+- Si dice una fecha DD/MM, asumí el año actual ({year}), o el siguiente si ya pasó.
+- Si NO pide ninguna fecha, respondé con null.
+
+Respondé SOLO con JSON válido, sin texto extra:
+{{ "date": "YYYY-MM-DD" }}
+o
 {{ "date": null }}
 
 Mensaje: "{message_text}"
@@ -493,22 +512,41 @@ Mensaje: "{message_text}"
                 model='gpt-4o-mini',
                 messages=[{'role': 'user', 'content': prompt}],
                 temperature=0.1,
-                max_tokens=20,
+                max_tokens=50,
             )
 
             if response and response.choices:
                 result_text = response.choices[0].message.content.strip()
+                logger.info(f'extract_appointment_date AI raw response: "{result_text}" for message: "{message_text}"')
                 if result_text.startswith('```'):
                     result_text = result_text.split('\n', 1)[1]
-                    result_text = result_text.rsplit('```', 1)[0]
+                    result_text = result_text.rsplit('```', 1)[0].strip()
                 
                 try:
                     data = json.loads(result_text)
                     if data.get('date'):
                         parsed_date = datetime.strptime(data['date'], '%Y-%m-%d').date()
+                        logger.info(f'extract_appointment_date: AI extracted date {parsed_date}')
                         return parsed_date
-                except (json.JSONDecodeError, ValueError):
-                    pass
+                except (json.JSONDecodeError, ValueError) as parse_err:
+                    logger.warning(f'extract_appointment_date: failed to parse AI response: {parse_err}, raw: "{result_text}"')
+
+            # --- Fallback: regex para detectar fechas DD/MM ---
+            logger.info(f'extract_appointment_date: AI returned no date, trying regex fallback for: "{message_text}"')
+            match = re.search(r'(\d{1,2})[/\-](\d{1,2})', message_text)
+            if match:
+                day_num = int(match.group(1))
+                month_num = int(match.group(2))
+                try:
+                    candidate = date(year, month_num, day_num)
+                    # Si la fecha ya pasó, usar el próximo año
+                    if candidate < today:
+                        candidate = date(year + 1, month_num, day_num)
+                    logger.info(f'extract_appointment_date: regex fallback extracted date {candidate}')
+                    return candidate
+                except ValueError:
+                    logger.warning(f'extract_appointment_date: regex found {day_num}/{month_num} but invalid date')
+
             return None
         except Exception as e:
             logger.error(f'Error extrayendo fecha de turno: {e}')

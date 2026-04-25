@@ -701,6 +701,7 @@ class ChatOrchestrator:
         try:
             target_date = ai_service.extract_appointment_date(message_text) if message_text else None
             start_date = target_date if target_date else date.today()
+            logger.info(f'_handle_appointment_intent: message="{message_text}", target_date={target_date}, start_date={start_date}')
 
             available_days = AppointmentService.get_available_days(appt_config, start_date, days_ahead=14)
             if not available_days:
@@ -824,6 +825,7 @@ class ChatOrchestrator:
 
         # --- Primero verificar si está pidiendo una fecha específica ---
         target_date = ai_service.extract_appointment_date(message_text)
+        logger.info(f'_handle_appointment_selection: extract_appointment_date returned {target_date} for message: "{message_text}"')
         if target_date:
             try:
                 all_days = AppointmentService.get_available_days(appt_config, target_date, days_ahead=30)
@@ -850,9 +852,12 @@ class ChatOrchestrator:
                 logger.error(f'Error buscando slots para fecha específica: {e}')
 
         # --- Palabras clave para ver más horarios (paginación) ---
-        MORE_KEYWORDS = ['más', 'mas', 'otros', 'otra', 'otro', 'diferente', 'próximo', 'proximo',
-                         'próxima', 'proxima', 'semana', 'más opciones', 'mas opciones',
-                         'más horarios', 'mas horarios', 'más días', 'mas dias', 'ver más', 'ver mas']
+        # NOTA: No incluir 'semana' aquí porque interfiere con "para la semana del DD/MM"
+        MORE_KEYWORDS = ['más opciones', 'mas opciones', 'más horarios', 'mas horarios',
+                         'más días', 'mas dias', 'ver más', 'ver mas', 'más adelante',
+                         'mas adelante', 'siguiente', 'siguientes', 'próximo', 'proximo',
+                         'próxima', 'proxima', 'otros horarios', 'otros turnos',
+                         'otros días', 'otros dias', 'mostrame más', 'mostrame mas']
         if any(kw in msg_lower for kw in MORE_KEYWORDS):
             new_offset = slot_offset + 8
             try:
