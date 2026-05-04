@@ -289,10 +289,12 @@ class PanelReplyView(LoginRequiredMixin, View):
 
         ChatOrchestrator.send_agent_reply(conversation, message_text, media_file=media_file)
 
-        # Reset SLA timer since a human has responded
+        # Reset SLA timer since a human has responded and update 'updated_at' to reset inactivity timer
+        update_fields = ['updated_at']
         if conversation.human_needed_at:
             conversation.human_needed_at = None
-            conversation.save(update_fields=['human_needed_at'])
+            update_fields.append('human_needed_at')
+        conversation.save(update_fields=update_fields)
 
         if is_ajax:
             return JsonResponse({'ok': True})

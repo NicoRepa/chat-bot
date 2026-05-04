@@ -68,6 +68,12 @@ case "${1:-web}" in
         echo -e "${GREEN}📂 Collecting static files...${NC}"
         python manage.py collectstatic --noinput 2>/dev/null || true
 
+        echo -e "${GREEN}⚙️  Iniciando Celery Worker en segundo plano...${NC}"
+        celery -A config worker --loglevel=info &
+
+        echo -e "${GREEN}⏰ Iniciando Celery Beat en segundo plano...${NC}"
+        celery -A config beat --loglevel=info &
+
         echo -e "${GREEN}🚀 Iniciando Daphne (ASGI)...${NC}"
         exec daphne -b 0.0.0.0 -p "${PORT:-8000}" config.asgi:application
         ;;
