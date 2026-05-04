@@ -49,8 +49,10 @@ def auto_reactivate_ai():
         if count > 0:
             for conv in stale_convs:
                 conv.is_ai_active = True
+                conv.menu_state = 'ai_chat'
+                conv.ai_messages_in_session = 0
                 conv.human_needed_at = None
-                conv.save(update_fields=['is_ai_active', 'human_needed_at'])
+                conv.save(update_fields=['is_ai_active', 'menu_state', 'ai_messages_in_session', 'human_needed_at'])
                 Message.objects.create(
                     conversation=conv,
                     role='system',

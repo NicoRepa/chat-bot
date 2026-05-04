@@ -2,6 +2,7 @@
 Serializers simples (dicts, sin DRF) para envío real-time via WebSocket.
 """
 
+from django.utils import timezone
 
 def serialize_message(msg):
     """Serializa un Message a dict para WebSocket."""
@@ -13,7 +14,7 @@ def serialize_message(msg):
         'metadata': msg.metadata or {},
         'tokens_used': msg.tokens_used,
         'ai_cost': str(msg.ai_cost) if msg.ai_cost else '0',
-        'created_at': msg.created_at.isoformat() if msg.created_at else '',
+        'created_at': timezone.localtime(msg.created_at).isoformat() if msg.created_at else '',
     }
 
 
@@ -60,7 +61,7 @@ def serialize_conversation_snapshot(conv):
         'assigned_to_display': assigned_display,
         'summary': conv.summary or '',
         'last_msg_preview': last_msg_preview,
-        'updated_at': conv.updated_at.isoformat() if conv.updated_at else '',
+        'updated_at': timezone.localtime(conv.updated_at).isoformat() if conv.updated_at else '',
         'status': conv.status,
         'status_display': conv.get_status_display(),
         'is_ai_active': conv.is_ai_active,
