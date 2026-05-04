@@ -49,6 +49,7 @@ THIRD_PARTY_APPS = [
     'channels',
     'rest_framework',
     'corsheaders',
+    'django_celery_beat',
 ]
 
 LOCAL_APPS = [
@@ -117,6 +118,21 @@ else:
             'BACKEND': 'channels.layers.InMemoryChannelLayer',
         },
     }
+
+# ── Celery (tareas en segundo plano) ──────────────────
+CELERY_BROKER_URL = _REDIS_URL or 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'America/Argentina/Buenos_Aires'
+
+CELERY_BEAT_SCHEDULE = {
+    'auto-reactivate-ai': {
+        'task': 'apps.conversations.tasks.auto_reactivate_ai',
+        'schedule': 300.0,  # cada 5 minutos
+    },
+}
 
 # ── Encriptación de campos sensibles ──────────────────
 FIELD_ENCRYPTION_KEY = os.getenv('FIELD_ENCRYPTION_KEY', '')

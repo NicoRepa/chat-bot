@@ -683,6 +683,13 @@ class SettingsView(LoginRequiredMixin, View):
             config.auto_close_hours = int(request.POST.get('auto_close_hours', 0))
         except (ValueError, TypeError):
             config.auto_close_hours = 0
+        try:
+            config.ai_auto_reactivate_value = int(request.POST.get('ai_auto_reactivate_value', 0))
+        except (ValueError, TypeError):
+            config.ai_auto_reactivate_value = 0
+        reactivate_unit = request.POST.get('ai_auto_reactivate_unit', 'minutes')
+        if reactivate_unit in ('minutes', 'hours'):
+            config.ai_auto_reactivate_unit = reactivate_unit
         config.agent_visibility_mode = request.POST.get('agent_visibility_mode', 'all')
         config.supervisor_only_mode = request.POST.get('supervisor_only_mode') == 'on'
         config.ai_feedback_enabled = request.POST.get('ai_feedback_enabled') == 'on'
@@ -713,6 +720,7 @@ class SettingsView(LoginRequiredMixin, View):
             'whatsapp_phone_id', 'whatsapp_token', 'whatsapp_verify_token',
             'whatsapp_app_secret',
             'auto_assign_enabled', 'ai_max_messages', 'auto_close_hours',
+            'ai_auto_reactivate_value', 'ai_auto_reactivate_unit',
             'agent_visibility_mode', 'supervisor_only_mode', 'ai_feedback_enabled',
             'menu_force_selection', 'menu_reactivation_message',
             'welcome_back_message', 'escalation_message', 'out_of_hours_message',

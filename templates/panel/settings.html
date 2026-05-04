@@ -591,6 +591,19 @@
                         Requiere ejecutar: <code>python manage.py auto_close</code> (con cron cada hora).</p>
                 </div>
 
+                <div class="form-group">
+                    <label class="form-label">Reactivación automática de la IA</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="number" name="ai_auto_reactivate_value" class="form-input"
+                            value="{{ config.ai_auto_reactivate_value }}" min="0" style="max-width: 100px;">
+                        <select name="ai_auto_reactivate_unit" class="form-select" style="max-width: 140px;">
+                            <option value="minutes" {% if config.ai_auto_reactivate_unit == 'minutes' %}selected{% endif %}>Minutos</option>
+                            <option value="hours" {% if config.ai_auto_reactivate_unit == 'hours' %}selected{% endif %}>Horas</option>
+                        </select>
+                    </div>
+                    <p class="form-hint">Si un chat tiene la IA desactivada y pasa este tiempo sin mensajes nuevos, la IA se reactiva automáticamente. 0 = desactivado.</p>
+                </div>
+
                 <hr style="border: none; border-top: 1px solid var(--border); margin: 24px 0;">
 
                 <h3

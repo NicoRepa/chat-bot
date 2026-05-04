@@ -76,6 +76,18 @@ case "${1:-web}" in
         echo -e "${GREEN}📦 Aplicando migraciones...${NC}"
         exec python manage.py migrate --noinput
         ;;
+    celery-worker)
+        wait_for_db
+        wait_for_redis
+        echo -e "${GREEN}⚙️  Iniciando Celery Worker...${NC}"
+        exec celery -A config worker --loglevel=info
+        ;;
+    celery-beat)
+        wait_for_db
+        wait_for_redis
+        echo -e "${GREEN}⏰ Iniciando Celery Beat...${NC}"
+        exec celery -A config beat --loglevel=info
+        ;;
     shell)
         wait_for_db
         exec python manage.py shell

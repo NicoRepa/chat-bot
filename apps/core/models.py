@@ -184,6 +184,21 @@ class BusinessConfig(models.Model):
         default=0,
         help_text='Cerrar conversaciones inactivas después de X horas. 0 = desactivado.'
     )
+    ai_auto_reactivate_value = models.IntegerField(
+        'Reactivación automática de IA',
+        default=0,
+        help_text='Tiempo de inactividad tras el cual se reactiva la IA automáticamente. 0 = desactivado.'
+    )
+    AI_REACTIVATE_UNIT_CHOICES = [
+        ('minutes', 'Minutos'),
+        ('hours', 'Horas'),
+    ]
+    ai_auto_reactivate_unit = models.CharField(
+        'Unidad de reactivación',
+        max_length=10,
+        choices=AI_REACTIVATE_UNIT_CHOICES,
+        default='minutes',
+    )
 
     # Visibilidad y modo de operación
     VISIBILITY_CHOICES = [
